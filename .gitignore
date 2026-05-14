@@ -25,5 +25,8 @@ npm-debug.log*
 # Claude
 .claude
 
+# Trae
+.trae
+
 package-lock.json
 pnpm-lock.yaml
