@@ -4,29 +4,16 @@
  * 本模块把浏览器可绘制内容转为硬边正方形网格；调用示例见同目录 README.md。
  */
 /**
- * 描述像素填充、背景或描边使用的 CSS 颜色字符串。
+ * 描述像素填充、背景或边线使用的 CSS 颜色字符串。
  */
 export type PixelPaint = string
-/**
- * 限定像素描边相对前景网格的位置。
- */
-export type PixelOutlinePosition = 'inside' | 'outside' | 'center'
 /**
  * 描述图片前景识别采用的背景来源。
  */
 export type PixelSourceBackground = SourceBackground
 
 /**
- * 配置像素画的硬边描边。
- */
-export interface PixelOutlineOptions {
-  width?: number
-  color?: PixelPaint
-  position?: PixelOutlinePosition
-}
-
-/**
- * 配置每个前景像素内部使用的分隔边线。
+ * 配置每个前景像素外部使用的四周边线。
  */
 export interface PixelBorderOptions {
   width?: number
@@ -39,7 +26,6 @@ export interface PixelBorderOptions {
 interface PixelStyleOptions {
   color?: PixelPaint | 'source'
   background?: PixelPaint | null
-  outline?: false | PixelOutlineOptions
   pixelBorder?: false | PixelBorderOptions
 }
 
@@ -100,11 +86,6 @@ const DEFAULT_PIXEL_STYLE: PixelGridOptions = {
   alphaThreshold: 0.5,
   padding: 1,
   trim: true,
-  outline: {
-    width: 1,
-    position: 'outside',
-    color: '#10212b',
-  },
   pixelBorder: {
     width: 1,
     color: '#ffffff',
@@ -159,7 +140,6 @@ interface PixelArtStyle {
   pixelSize: number
   color: PixelPaint | 'source'
   background?: PixelPaint
-  outline: false | Required<PixelOutlineOptions>
   pixelBorder: false | Required<PixelBorderOptions>
 }
 
@@ -169,16 +149,6 @@ interface PixelArtStyle {
 interface ResolvedGridOptions {
   raster: RasterOptions
   style: Omit<PixelArtStyle, 'pixelSize'>
-}
-
-/**
- * 描述加入描边后的输出网格映射。
- */
-interface OutlineLayout {
-  columns: number
-  rows: number
-  sourceIndexes: Int32Array
-  outlineMask: Uint8Array
 }
 
 /**
@@ -214,7 +184,6 @@ export class PixelArt {
     this.colors = [...data.colors]
     this.style = {
       ...style,
-      outline: style.outline === false ? false : { ...style.outline },
       pixelBorder:
         style.pixelBorder === false ? false : { ...style.pixelBorder },
     }
@@ -244,15 +213,15 @@ export class PixelArt {
    */
   getDimensions(options: PixelRenderOptions = {}): PixelArtDimensions {
     const resolved = resolveRenderOptions(this.style, options)
-    const outsideWidth = getOutsideWidth(resolved.outline)
-    const columns = this.columns + outsideWidth * 2
-    const rows = this.rows + outsideWidth * 2
+    const borderWidth =
+      resolved.pixelBorder === false ? 0 : resolved.pixelBorder.width
+    const cellStride = resolved.pixelSize + borderWidth
 
     return {
-      width: columns * resolved.pixelSize,
-      height: rows * resolved.pixelSize,
-      columns,
-      rows,
+      width: this.columns * cellStride - borderWidth,
+      height: this.rows * cellStride - borderWidth,
+      columns: this.columns,
+      rows: this.rows,
       pixelSize: resolved.pixelSize,
     }
   }
@@ -277,84 +246,72 @@ export class PixelArt {
     context.clearRect(0, 0, canvas.width, canvas.height)
     context.imageSmoothingEnabled = false
 
-    const layout = createOutlineLayout(
-      this.mask,
-      this.columns,
-      this.rows,
-      resolved.outline,
-    )
     const fillPalette =
       resolved.color === 'source'
         ? undefined
-        : createPixelPalette(resolved.color, layout.columns, layout.rows)
-    const outlinePalette =
-      resolved.outline === false
-        ? undefined
-        : createPixelPalette(resolved.outline.color, layout.columns, layout.rows)
+        : createPixelPalette(resolved.color, this.columns, this.rows)
     const backgroundPalette = resolved.background
-      ? createPixelPalette(resolved.background, layout.columns, layout.rows)
+      ? createPixelPalette(resolved.background, this.columns, this.rows)
       : undefined
     const pixelBorderPalette =
       resolved.pixelBorder === false
         ? undefined
         : createPixelPalette(
             resolved.pixelBorder.color,
-            layout.columns,
-            layout.rows,
+            this.columns,
+            this.rows,
           )
+    const borderWidth =
+      resolved.pixelBorder === false ? 0 : resolved.pixelBorder.width
+    const cellStride = resolved.pixelSize + borderWidth
 
-    for (let y = 0; y < layout.rows; y += 1) {
-      for (let x = 0; x < layout.columns; x += 1) {
-        const outputIndex = y * layout.columns + x
-        const targetX = x * resolved.pixelSize
-        const targetY = y * resolved.pixelSize
+    if (backgroundPalette) {
+      for (let y = 0; y < this.rows; y += 1) {
+        for (let x = 0; x < this.columns; x += 1) {
+          const index = y * this.columns + x
+          const targetX = x * cellStride
+          const targetY = y * cellStride
 
-        if (backgroundPalette) {
-          fillSquare(
-            context,
-            targetX,
-            targetY,
-            resolved.pixelSize,
-            backgroundPalette[outputIndex],
+          context.fillStyle = backgroundPalette[index]
+          context.fillRect(
+            targetX - borderWidth,
+            targetY - borderWidth,
+            resolved.pixelSize + borderWidth * 2,
+            resolved.pixelSize + borderWidth * 2,
           )
         }
-
-        if (layout.outlineMask[outputIndex] !== 0 && outlinePalette) {
-          fillSquare(
-            context,
-            targetX,
-            targetY,
-            resolved.pixelSize,
-            outlinePalette[outputIndex],
-          )
-          continue
-        }
-
-        const sourceIndex = layout.sourceIndexes[outputIndex]
-
-        if (sourceIndex < 0 || this.mask[sourceIndex] === 0) {
-          continue
-        }
-
-        fillSquare(
-          context,
-          targetX,
-          targetY,
-          resolved.pixelSize,
-          fillPalette?.[outputIndex] ?? this.colors[sourceIndex],
-        )
       }
     }
 
     if (pixelBorderPalette && resolved.pixelBorder !== false) {
       drawPixelBorders(
         context,
-        layout,
         this.mask,
+        this.columns,
+        this.rows,
         resolved.pixelSize,
+        cellStride,
         pixelBorderPalette,
         resolved.pixelBorder.width,
       )
+    }
+
+    for (let y = 0; y < this.rows; y += 1) {
+      for (let x = 0; x < this.columns; x += 1) {
+        const index = y * this.columns + x
+
+        if (this.mask[index] === 0) {
+          continue
+        }
+
+        fillSquare(
+          context,
+          x * cellStride,
+          y * cellStride,
+          resolved.pixelSize,
+          fillPalette?.[index] ?? this.colors[index],
+        )
+      }
     }
 
     return canvas
@@ -480,7 +437,6 @@ function resolveGridOptions(
     style: {
       color: options.color ?? defaultColor,
       background: options.background ?? undefined,
-      outline: resolveOutline(options.outline),
       pixelBorder: resolvePixelBorder(options.pixelBorder),
     },
   }
@@ -514,10 +470,6 @@ function resolveRenderOptions(
       options.background === undefined
         ? style.background
         : options.background ?? undefined,
-    outline:
-      options.outline === undefined
-        ? style.outline
-        : resolveOutline(options.outline),
     pixelBorder,
   }
 }
@@ -542,170 +494,6 @@ function resolvePixelBorder(
 }
 
 /**
- * 把可选描边配置转换为内部完整结构。
- */
-function resolveOutline(
-  outline: false | PixelOutlineOptions | undefined,
-): false | Required<PixelOutlineOptions> {
-  if (outline === false || outline === undefined) {
-    return false
-  }
-
-  const width = outline.width ?? 1
-  assertPositiveInteger(width, 'outline.width')
-
-  return {
-    width,
-    color: outline.color ?? '#000000',
-    position: outline.position ?? 'outside',
-  }
-}
-
-/**
- * 扩展网格并标记内外侧描边像素。
- */
-function createOutlineLayout(
-  mask: Uint8Array,
-  columns: number,
-  rows: number,
-  outline: false | Required<PixelOutlineOptions>,
-): OutlineLayout {
-  const outsideWidth = getOutsideWidth(outline)
-  const insideWidth = getInsideWidth(outline)
-  const outputColumns = columns + outsideWidth * 2
-  const outputRows = rows + outsideWidth * 2
-  const sourceIndexes = new Int32Array(outputColumns * outputRows).fill(-1)
-  const outputMask = new Uint8Array(outputColumns * outputRows)
-  const outlineMask = new Uint8Array(outputColumns * outputRows)
-
-  for (let y = 0; y < outputRows; y += 1) {
-    for (let x = 0; x < outputColumns; x += 1) {
-      const sourceX = x - outsideWidth
-      const sourceY = y - outsideWidth
-      const outputIndex = y * outputColumns + x
-
-      if (sourceX >= 0 && sourceY >= 0 && sourceX < columns && sourceY < rows) {
-        const sourceIndex = sourceY * columns + sourceX
-        sourceIndexes[outputIndex] = sourceIndex
-        outputMask[outputIndex] = mask[sourceIndex]
-      }
-    }
-  }
-
-  if (outline !== false) {
-    for (let y = 0; y < outputRows; y += 1) {
-      for (let x = 0; x < outputColumns; x += 1) {
-        const index = y * outputColumns + x
-
-        if (
-          outputMask[index] === 0 &&
-          outsideWidth > 0 &&
-          hasNearbyValue(
-            outputMask,
-            outputColumns,
-            outputRows,
-            x,
-            y,
-            outsideWidth,
-            1,
-          )
-        ) {
-          outlineMask[index] = 1
-          continue
-        }
-
-        if (
-          outputMask[index] !== 0 &&
-          insideWidth > 0 &&
-          hasNearbyValue(
-            outputMask,
-            outputColumns,
-            outputRows,
-            x,
-            y,
-            insideWidth,
-            0,
-          )
-        ) {
-          outlineMask[index] = 1
-        }
-      }
-    }
-  }
-
-  return {
-    columns: outputColumns,
-    rows: outputRows,
-    sourceIndexes,
-    outlineMask,
-  }
-}
-
-/**
- * 检查指定半径内是否存在目标掩码值。
- */
-function hasNearbyValue(
-  mask: Uint8Array,
-  width: number,
-  height: number,
-  x: number,
-  y: number,
-  radius: number,
-  target: 0 | 1,
-): boolean {
-  for (let offsetY = -radius; offsetY <= radius; offsetY += 1) {
-    for (let offsetX = -radius; offsetX <= radius; offsetX += 1) {
-      const sampleX = x + offsetX
-      const sampleY = y + offsetY
-
-      if (sampleX < 0 || sampleY < 0 || sampleX >= width || sampleY >= height) {
-        if (target === 0) {
-          return true
-        }
-
-        continue
-      }
-
-      if (mask[sampleY * width + sampleX] === target) {
-        return true
-      }
-    }
-  }
-
-  return false
-}
-
-/**
- * 计算描边向外扩展的逻辑格数。
- */
-function getOutsideWidth(
-  outline: false | Required<PixelOutlineOptions>,
-): number {
-  if (outline === false || outline.position === 'inside') {
-    return 0
-  }
-
-  return outline.position === 'outside'
-    ? outline.width
-    : Math.ceil(outline.width / 2)
-}
-
-/**
- * 计算描边覆盖前景内部的逻辑格数。
- */
-function getInsideWidth(
-  outline: false | Required<PixelOutlineOptions>,
-): number {
-  if (outline === false || outline.position === 'outside') {
-    return 0
-  }
-
-  return outline.position === 'inside'
-    ? outline.width
-    : Math.floor(outline.width / 2)
-}
-
-/**
  * 使用单一颜色绘制完整正方形像素。
  */
 function fillSquare(
@@ -720,62 +508,78 @@ function fillSquare(
 }
 
 /**
- * 在相邻前景像素共享的边界上绘制单条分隔线。
+ * 只在相邻前景像素之间绘制不占用块尺寸的共享白线。
+ *
+ * 接触背景的外侧边不会产生白线，内部交叉点则补成连续的单像素网格。
  */
 function drawPixelBorders(
   context: CanvasRenderingContext2D,
-  layout: OutlineLayout,
-  sourceMask: Uint8Array,
+  mask: Uint8Array,
+  columns: number,
+  rows: number,
   pixelSize: number,
+  cellStride: number,
   palette: string[],
   width: number,
 ) {
-  for (let y = 0; y < layout.rows; y += 1) {
-    for (let x = 0; x < layout.columns; x += 1) {
-      const outputIndex = y * layout.columns + x
-      const sourceIndex = layout.sourceIndexes[outputIndex]
+  // 网格范围外的位置始终视为空白。
+  const isForeground = (x: number, y: number) =>
+    x >= 0 && y >= 0 && x < columns && y < rows && mask[y * columns + x] !== 0
 
-      if (sourceIndex < 0 || sourceMask[sourceIndex] === 0) {
+  for (let y = 0; y < rows; y += 1) {
+    for (let x = 0; x < columns; x += 1) {
+      const index = y * columns + x
+
+      if (mask[index] === 0) {
         continue
       }
 
-      context.fillStyle = palette[outputIndex]
+      const targetX = x * cellStride
+      const targetY = y * cellStride
+      context.fillStyle = palette[index]
 
-      const rightIndex = outputIndex + 1
-      const rightSourceIndex = layout.sourceIndexes[rightIndex]
-
-      if (
-        x + 1 < layout.columns &&
-        rightSourceIndex >= 0 &&
-        sourceMask[rightSourceIndex] !== 0
-      ) {
-        context.fillRect(
-          (x + 1) * pixelSize - width,
-          y * pixelSize,
-          width,
-          pixelSize,
-        )
+      if (isForeground(x - 1, y)) {
+        context.fillRect(targetX - width, targetY, width, pixelSize)
       }
 
-      const bottomIndex = outputIndex + layout.columns
-      const bottomSourceIndex = layout.sourceIndexes[bottomIndex]
+      if (isForeground(x + 1, y)) {
+        context.fillRect(targetX + pixelSize, targetY, width, pixelSize)
+      }
 
-      if (
-        y + 1 < layout.rows &&
-        bottomSourceIndex >= 0 &&
-        sourceMask[bottomSourceIndex] !== 0
-      ) {
-        context.fillRect(
-          x * pixelSize,
-          (y + 1) * pixelSize - width,
-          pixelSize,
-          width,
-        )
+      if (isForeground(x, y - 1)) {
+        context.fillRect(targetX, targetY - width, pixelSize, width)
+      }
+
+      if (isForeground(x, y + 1)) {
+        context.fillRect(targetX, targetY + pixelSize, pixelSize, width)
       }
     }
   }
-}
 
+  for (let y = 1; y < rows; y += 1) {
+    for (let x = 1; x < columns; x += 1) {
+      const connectedEdgeCount =
+        Number(isForeground(x - 1, y - 1) && isForeground(x, y - 1)) +
+        Number(isForeground(x - 1, y) && isForeground(x, y)) +
+        Number(isForeground(x - 1, y - 1) && isForeground(x - 1, y)) +
+        Number(isForeground(x, y - 1) && isForeground(x, y))
+
+      if (connectedEdgeCount < 2) {
+        continue
+      }
+
+      const paletteIndex =
+        Math.min(y, rows - 1) * columns + Math.min(x, columns - 1)
+      context.fillStyle = palette[paletteIndex]
+      context.fillRect(
+        x * cellStride - width,
+        y * cellStride - width,
+        width,
+        width,
+      )
+    }
+  }
+}
 /**
  * 断言配置值为正整数。
  */
@@ -840,6 +644,11 @@ interface TextRasterOptions extends RasterOptions {
 }
 
 /**
+ * 区分普通文本采样和图片空隙修复两种内部路径。
+ */
+type RasterSourceKind = 'text' | 'image'
+
+/**
  * 描述内部图片背景识别模式。
  */
 type SourceBackground = 'auto' | 'transparent' | string
@@ -892,7 +701,7 @@ async function rasterizeText(
   const canvas = await createTextCanvas(text, options)
   throwIfAborted(options.signal)
 
-  return rasterizeCanvas(canvas, options, 'transparent')
+  return rasterizeCanvas(canvas, options, 'transparent', 'text')
 }
 
 /**
@@ -913,6 +722,7 @@ async function rasterizeImage(
     drawImageToCanvas(image, options),
     options,
     options.sourceBackground ?? 'auto',
+    'image',
     clamp(options.backgroundThreshold ?? 0.08, 0, 1),
   )
 }
@@ -1102,12 +912,13 @@ function drawImageToCanvas(
 }
 
 /**
- * 把源 Canvas 转换为硬边逻辑像素网格。
+ * 按文本或图片规则把源 Canvas 转换为硬边逻辑像素网格。
  */
 function rasterizeCanvas(
   canvas: HTMLCanvasElement,
   options: RasterOptions,
   sourceBackground: SourceBackground,
+  sourceKind: RasterSourceKind,
   backgroundThreshold = 0.08,
 ): PixelGridData {
   const context = getContext(canvas, true)
@@ -1140,7 +951,6 @@ function rasterizeCanvas(
           sourceMask,
           imageData.width,
           imageData.height,
-          sourceBounds,
           options.minPixelSize,
           options.maxPixelSize,
         )
@@ -1157,6 +967,7 @@ function rasterizeCanvas(
     options.coverageThreshold,
     options.padding,
     options.trim,
+    sourceKind === 'image',
   )
 }
 
@@ -1301,13 +1112,12 @@ function colorDistance(left: RgbaColor, right: RgbaColor): number {
 }
 
 /**
- * 估算能同时保留前景笔画和内部背景间隙的像素尺寸。
+ * 根据前景笔画的稳定局部厚度估算像素尺寸。
  */
 function estimateFeatureWidth(
   mask: Uint8Array,
   width: number,
   height: number,
-  bounds: Bounds,
   minimum: number,
   maximum: number,
 ): number {
@@ -1376,108 +1186,11 @@ function estimateFeatureWidth(
 
   meaningful.sort((left, right) => left - right)
 
-  const strokeWidth = Math.round(
-    meaningful[Math.floor((meaningful.length - 1) * 0.2)],
-  )
-  const gapWidth = estimateInternalGapWidth(mask, width, bounds)
-
   return clamp(
-    Math.min(strokeWidth, gapWidth ?? strokeWidth),
+    Math.round(meaningful[Math.floor((meaningful.length - 1) * 0.2)]),
     minimum,
     maximum,
   )
-}
-
-/**
- * 估算被前景夹住的最窄稳定背景间隙。
- */
-function estimateInternalGapWidth(
-  mask: Uint8Array,
-  sourceWidth: number,
-  bounds: Bounds,
-): number | undefined {
-  const gaps: number[] = []
-
-  for (let x = bounds.x; x < bounds.x + bounds.width; x += 1) {
-    collectBoundedBackgroundRuns(
-      mask,
-      bounds.y * sourceWidth + x,
-      bounds.height,
-      sourceWidth,
-      gaps,
-    )
-  }
-
-  for (let y = bounds.y; y < bounds.y + bounds.height; y += 1) {
-    collectBoundedBackgroundRuns(
-      mask,
-      y * sourceWidth + bounds.x,
-      bounds.width,
-      1,
-      gaps,
-    )
-  }
-
-  const candidates = gaps.filter((value) => value >= 2)
-
-  if (candidates.length === 0) {
-    return undefined
-  }
-
-  const frequencies = new Map<number, number>()
-
-  candidates.forEach((value) => {
-    frequencies.set(value, (frequencies.get(value) ?? 0) + 1)
-  })
-
-  const minimumOccurrences = Math.max(
-    2,
-    Math.floor(Math.min(bounds.width, bounds.height) * 0.03),
-  )
-  const stable = candidates.filter(
-    (value) =>
-      (frequencies.get(value - 1) ?? 0) +
-        (frequencies.get(value) ?? 0) +
-        (frequencies.get(value + 1) ?? 0) >=
-      minimumOccurrences,
-  )
-  const meaningful = stable.length > 0 ? stable : candidates
-
-  meaningful.sort((left, right) => left - right)
-
-  return meaningful[Math.floor((meaningful.length - 1) * 0.15)]
-}
-
-/**
- * 收集一条扫描线上被前景包围的背景连续段。
- */
-function collectBoundedBackgroundRuns(
-  mask: Uint8Array,
-  startIndex: number,
-  length: number,
-  step: number,
-  target: number[],
-) {
-  let hasForegroundBefore = false
-  let backgroundLength = 0
-
-  for (let offset = 0; offset < length; offset += 1) {
-    const value = mask[startIndex + offset * step]
-
-    if (value !== 0) {
-      if (hasForegroundBefore && backgroundLength > 0) {
-        target.push(backgroundLength)
-      }
-
-      hasForegroundBefore = true
-      backgroundLength = 0
-      continue
-    }
-
-    if (hasForegroundBefore) {
-      backgroundLength += 1
-    }
-  }
 }
 
 /**
@@ -1523,7 +1236,7 @@ function isLocalMaximum(
 }
 
 /**
- * 按正方形尺寸和覆盖率硬阈值采样源掩码。
+ * 按覆盖率阈值采样源掩码，并按来源决定是否修复图片空隙。
  */
 function sampleGrid(
   imageData: ImageData,
@@ -1533,6 +1246,7 @@ function sampleGrid(
   coverageThreshold: number,
   padding: number,
   trim: boolean,
+  repairBackgroundGaps: boolean,
 ): PixelGridData {
   const columns = Math.ceil(bounds.width / pixelSize)
   const rows = Math.ceil(bounds.height / pixelSize)
@@ -1585,16 +1299,18 @@ function sampleGrid(
     }
   }
 
-  preserveBoundedBackgroundGaps(
-    mask,
-    colors,
-    sourceMask,
-    imageData.width,
-    bounds,
-    pixelSize,
-    columns,
-    rows,
-  )
+  if (repairBackgroundGaps) {
+    preserveBoundedBackgroundGaps(
+      mask,
+      colors,
+      sourceMask,
+      imageData.width,
+      bounds,
+      pixelSize,
+      columns,
+      rows,
+    )
+  }
 
   const gridBounds = trim ? findBounds(mask, columns, rows) : undefined
 
@@ -1616,7 +1332,9 @@ function sampleGrid(
 }
 
 /**
- * 把源掩码中被前景夹住的背景间隙强制保留到逻辑网格。
+ * 只为图片保留贯穿整个源格且被两侧前景错误桥接的背景通道。
+ *
+ * 局部空白不会再清除包含真实笔画的整个逻辑格，避免横画和封闭结构断裂。
  */
 function preserveBoundedBackgroundGaps(
   gridMask: Uint8Array,
@@ -1628,68 +1346,77 @@ function preserveBoundedBackgroundGaps(
   columns: number,
   rows: number,
 ) {
-  const clearGridCell = (sourceX: number, sourceY: number) => {
-    const gridX = Math.floor((sourceX - bounds.x) / pixelSize)
-    const gridY = Math.floor((sourceY - bounds.y) / pixelSize)
+  const originalMask = gridMask.slice()
 
-    if (gridX < 0 || gridY < 0 || gridX >= columns || gridY >= rows) {
-      return
-    }
+  // 网格范围外的位置始终视为空白。
+  const hasGridForeground = (x: number, y: number) =>
+    x >= 0 && y >= 0 && x < columns && y < rows && originalMask[y * columns + x] !== 0
 
-    const gridIndex = gridY * columns + gridX
-    gridMask[gridIndex] = 0
-    gridColors[gridIndex] = 'rgba(0, 0, 0, 0)'
-  }
+  for (let gridY = 0; gridY < rows; gridY += 1) {
+    for (let gridX = 0; gridX < columns; gridX += 1) {
+      const gridIndex = gridY * columns + gridX
 
-  for (let sourceX = bounds.x; sourceX < bounds.x + bounds.width; sourceX += 1) {
-    let hasForegroundBefore = false
-    let gapStart = -1
+      if (originalMask[gridIndex] === 0) {
+        continue
+      }
 
-    for (let sourceY = bounds.y; sourceY < bounds.y + bounds.height; sourceY += 1) {
-      const isForeground = sourceMask[sourceY * sourceWidth + sourceX] !== 0
+      const startX = bounds.x + gridX * pixelSize
+      const startY = bounds.y + gridY * pixelSize
+      const endX = Math.min(startX + pixelSize, bounds.x + bounds.width)
+      const endY = Math.min(startY + pixelSize, bounds.y + bounds.height)
+      let hasHorizontalBackgroundChannel = false
+      let hasVerticalBackgroundChannel = false
 
-      if (isForeground) {
-        if (
-          hasForegroundBefore &&
-          gapStart >= 0 &&
-          sourceY - gapStart >= 2
-        ) {
-          clearGridCell(sourceX, gapStart + Math.floor((sourceY - gapStart) / 2))
+      for (let sourceY = startY; sourceY < endY; sourceY += 1) {
+        let rowIsBackground = true
+
+        for (let sourceX = startX; sourceX < endX; sourceX += 1) {
+          if (sourceMask[sourceY * sourceWidth + sourceX] !== 0) {
+            rowIsBackground = false
+            break
+          }
         }
 
-        hasForegroundBefore = true
-        gapStart = -1
-      } else if (hasForegroundBefore && gapStart < 0) {
-        gapStart = sourceY
+        if (rowIsBackground) {
+          hasHorizontalBackgroundChannel = true
+          break
+        }
       }
-    }
-  }
 
-  for (let sourceY = bounds.y; sourceY < bounds.y + bounds.height; sourceY += 1) {
-    let hasForegroundBefore = false
-    let gapStart = -1
+      for (let sourceX = startX; sourceX < endX; sourceX += 1) {
+        let columnIsBackground = true
 
-    for (let sourceX = bounds.x; sourceX < bounds.x + bounds.width; sourceX += 1) {
-      const isForeground = sourceMask[sourceY * sourceWidth + sourceX] !== 0
-
-      if (isForeground) {
-        if (
-          hasForegroundBefore &&
-          gapStart >= 0 &&
-          sourceX - gapStart >= 2
-        ) {
-          clearGridCell(gapStart + Math.floor((sourceX - gapStart) / 2), sourceY)
+        for (let sourceY = startY; sourceY < endY; sourceY += 1) {
+          if (sourceMask[sourceY * sourceWidth + sourceX] !== 0) {
+            columnIsBackground = false
+            break
+          }
         }
 
-        hasForegroundBefore = true
-        gapStart = -1
-      } else if (hasForegroundBefore && gapStart < 0) {
-        gapStart = sourceX
+        if (columnIsBackground) {
+          hasVerticalBackgroundChannel = true
+          break
+        }
       }
+
+      const bridgesVerticalStrokes =
+        hasHorizontalBackgroundChannel &&
+        hasGridForeground(gridX, gridY - 1) &&
+        hasGridForeground(gridX, gridY + 1)
+      const bridgesHorizontalStrokes =
+        hasVerticalBackgroundChannel &&
+        hasGridForeground(gridX - 1, gridY) &&
+        hasGridForeground(gridX + 1, gridY)
+
+      if (!bridgesVerticalStrokes && !bridgesHorizontalStrokes) {
+        continue
+      }
+
+      gridMask[gridIndex] = 0
+      gridColors[gridIndex] = 'rgba(0, 0, 0, 0)'
     }
   }
 }
-
 /**
  * 裁剪空白网格并加入指定逻辑留白。
  */

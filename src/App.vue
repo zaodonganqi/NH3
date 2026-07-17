@@ -287,7 +287,6 @@ body {
   top: 20px;
   left: 20px;
   display: grid;
-  max-width: min(280px, calc(100vw - 40px));
   gap: 4px;
   justify-items: start;
   pointer-events: none;
@@ -296,7 +295,8 @@ body {
 
 .pixel-brand__canvas {
   display: block;
-  max-width: 100%;
+  width: auto;
+  max-width: none;
   height: auto;
   image-rendering: crisp-edges;
   image-rendering: pixelated;
@@ -643,7 +643,6 @@ body {
   .pixel-brand {
     top: 14px;
     left: 14px;
-    max-width: calc(100vw - 28px);
   }
 
   .markdown-body {
