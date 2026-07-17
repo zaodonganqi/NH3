@@ -1,5 +1,22 @@
 <template>
   <main class="page" @click="handleMarkdownClick">
+    <div
+      v-if="!pixelBrandError"
+      class="pixel-brand"
+      role="img"
+      aria-label="躁动的氨气 NH3"
+    >
+      <canvas
+        ref="pixelBrandTitleRef"
+        class="pixel-brand__canvas pixel-brand__canvas--title"
+        aria-hidden="true"
+      ></canvas>
+      <canvas
+        ref="pixelBrandFormulaRef"
+        class="pixel-brand__canvas pixel-brand__canvas--formula"
+        aria-hidden="true"
+      ></canvas>
+    </div>
     <article ref="articleRef" class="markdown-body" v-html="html"></article>
     <aside ref="profileRef" class="profile-panel">
       <section class="profile-body" v-html="profileHtml"></section>
@@ -22,6 +39,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import MarkdownIt from 'markdown-it'
 import plan from './assets/plan.md?raw'
 import profile from './assets/profile.md?raw'
+import { pixelateText } from './utils'
 
 gsap.registerPlugin(ScrollTrigger)
 
@@ -80,12 +98,16 @@ const html = md.render(plan)
 const profileHtml = md.render(profile)
 const articleRef = ref<HTMLElement | null>(null)
 const profileRef = ref<HTMLElement | null>(null)
+const pixelBrandTitleRef = ref<HTMLCanvasElement | null>(null)
+const pixelBrandFormulaRef = ref<HTMLCanvasElement | null>(null)
+const pixelBrandError = ref(false)
 const previewImage = ref<{ src: string; alt: string } | null>(null)
 
 let animationContext: gsap.Context | undefined
 
 onMounted(async () => {
   await nextTick()
+  void renderPixelBrand()
 
   const article = articleRef.value
   const profilePanel = profileRef.value
@@ -179,6 +201,32 @@ onUnmounted(() => {
   animationContext?.revert()
 })
 
+/**
+ * 渲染用于检查文本栅格效果的临时像素品牌。
+ */
+async function renderPixelBrand() {
+  try {
+    const [titleArt, formulaArt] = await Promise.all([
+      pixelateText('躁动的氨气'),
+      pixelateText('NH3'),
+    ])
+    const titleCanvas = pixelBrandTitleRef.value
+    const formulaCanvas = pixelBrandFormulaRef.value
+
+    if (!titleCanvas || !formulaCanvas) {
+      return
+    }
+
+    titleCanvas.dataset.pixelSize = String(titleArt.sourcePixelSize)
+    formulaCanvas.dataset.pixelSize = String(formulaArt.sourcePixelSize)
+    titleArt.render(titleCanvas)
+    formulaArt.render(formulaCanvas)
+  } catch (error) {
+    pixelBrandError.value = true
+    console.error('Pixel brand rendering failed.', error)
+  }
+}
+
 function handleMarkdownClick(event: MouseEvent) {
   const target = event.target
 
@@ -231,6 +279,31 @@ body {
 
 #app {
   min-height: 100vh;
+}
+
+.pixel-brand {
+  position: fixed;
+  z-index: 10;
+  top: 20px;
+  left: 20px;
+  display: grid;
+  max-width: min(280px, calc(100vw - 40px));
+  gap: 4px;
+  justify-items: start;
+  pointer-events: none;
+  filter: drop-shadow(0 8px 12px rgba(17, 32, 43, 0.18));
+}
+
+.pixel-brand__canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+
+.pixel-brand__canvas--formula {
+  margin-left: 2px;
 }
 
 .page {
@@ -545,6 +618,14 @@ body {
 }
 
 @media (max-width: 1160px) {
+  .page {
+    padding-top: 220px;
+  }
+
+  .pixel-brand {
+    position: absolute;
+  }
+
   .profile-panel {
     top: auto;
     right: 18px;
@@ -556,7 +637,13 @@ body {
 
 @media (max-width: 640px) {
   .page {
-    padding: 0;
+    padding: 206px 0 0;
+  }
+
+  .pixel-brand {
+    top: 14px;
+    left: 14px;
+    max-width: calc(100vw - 28px);
   }
 
   .markdown-body {
