@@ -1,0 +1,97 @@
+:root {
+  color: #5c6e8f;
+  background: #ffffff;
+  font-family: "Cascadia Mono", "Microsoft YaHei", monospace;
+  font-synthesis: none;
+  text-rendering: geometricPrecision;
+}
+
+* { box-sizing: border-box; }
+
+html,
+body,
+#app {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+  background: #ffffff;
+}
+
+body { min-height: 100vh; overflow-x: hidden; }
+a, button { color: inherit; font: inherit; }
+
+.site-frame {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  overflow: hidden;
+  color: #657694;
+  background: #ffffff;
+}
+
+.pixel-link {
+  position: relative;
+  display: inline-block;
+  padding: 0 0 11px;
+  color: #5873ed;
+  font-size: 18px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.pixel-link::after {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  content: "";
+  background: repeating-linear-gradient(90deg, #6385f1 0 4px, transparent 4px 8px);
+}
+
+.content-section {
+  position: relative;
+  min-height: 720px;
+  padding: clamp(72px, 9vw, 140px) clamp(40px, 8vw, 124px);
+  overflow: hidden;
+  border-top: 1px solid #edf1fa;
+  background: #ffffff;
+}
+
+.content-section h2 {
+  width: min(100%, 760px);
+  max-width: 760px;
+  margin: 0;
+  color: #5873e8;
+  font-family: "Microsoft YaHei", sans-serif;
+  font-size: clamp(40px, 5.5vw, 78px);
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.section-pixel-title {
+  width: 100%;
+}
+
+.content-section--contact {
+  grid-template-columns: 100%;
+}
+
+.section-kicker { margin: 0 0 20px; color: #95a5c7; font-size: 12px; font-weight: 800; }
+.section-heading { margin-bottom: 70px; }
+::selection { color: #ffffff; background: #667ff0; }
+
+@media (max-width: 820px) {
+  .content-section { min-height: 620px; padding: 78px 28px; }
+}
+
+@media (max-width: 560px) {
+  .pixel-link { font-size: 15px; }
+  .content-section { min-height: 560px; padding: 68px 22px; }
+  .content-section h2 { font-size: 38px; }
+  .section-heading { margin-bottom: 48px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}

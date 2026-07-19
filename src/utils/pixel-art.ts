@@ -32,9 +32,7 @@ interface PixelStyleOptions {
 /**
  * 配置 PixelArt 对象当前一次的 Canvas 渲染。
  */
-export interface PixelRenderOptions extends PixelStyleOptions {
-  pixelSize?: number
-}
+export interface PixelRenderOptions extends PixelStyleOptions {}
 
 /**
  * 配置前景检测和正方形网格生成。
@@ -52,16 +50,22 @@ export interface PixelGridOptions extends PixelStyleOptions {
 /**
  * 配置文本源的字体测量和像素化过程。
  */
-export interface PixelTextOptions extends PixelGridOptions {
+export interface PixelTextOptions {
   fontFamily?: string
   fontSize?: number
   fontStyle?: 'normal' | 'italic' | 'oblique'
-  fontWeight?: number | string
   letterSpacing?: number
   lineHeight?: number
-  awaitFont?: boolean
+  textAlign?: 'left' | 'center' | 'right'
+  color?: PixelPaint
+  density?: number
   signal?: AbortSignal
 }
+
+/**
+ * 合并公开文本 CSS 参数与内部固定采样参数。
+ */
+type ResolvedTextOptions = PixelTextOptions & PixelGridOptions
 
 /**
  * 配置图片加载、背景识别和像素化过程。
@@ -93,16 +97,25 @@ const DEFAULT_PIXEL_STYLE: PixelGridOptions = {
 }
 
 /**
- * 普通文本在零配置调用时使用的统一字体和渐变。
+ * 普通文本在零配置调用时使用的统一字体和像素样式。
  */
-const DEFAULT_TEXT_OPTIONS: PixelTextOptions = {
+const DEFAULT_TEXT_OPTIONS: ResolvedTextOptions = {
   ...DEFAULT_PIXEL_STYLE,
-  fontFamily: '"Microsoft YaHei", "PingFang SC", sans-serif',
-  fontSize: 52,
-  fontWeight: 900,
-  letterSpacing: 1,
-  color: 'linear-gradient(90deg, #ff315f 0%, #ffb84d 46%, #39c6a3 100%)',
+  pixelBorder: {
+    width: 0.5,
+    color: '#ffffff',
+  },
+  coverageThreshold: 0.16,
+  fontFamily: 'SimSun, "Songti SC", serif',
+  fontSize: 92,
+  letterSpacing: -2,
+  textAlign: 'center',
+  color: '#617cf4',
+  density: 16,
 }
+
+// 文本掩码固定使用已验证的常规字重，避免输出缩放被误解为字形粗细。
+const TEXT_MASK_FONT_WEIGHT = 400
 
 /**
  * 图片在零配置调用时使用的统一来源颜色和背景识别方式。
@@ -144,6 +157,19 @@ interface PixelArtStyle {
 }
 
 /**
+ * 保存一次 Canvas 自适应绘制使用的物理像素布局。
+ */
+interface CanvasRenderLayout {
+  canvasWidth: number
+  canvasHeight: number
+  pixelSize: number
+  borderWidth: number
+  cellStride: number
+  offsetX: number
+  offsetY: number
+}
+
+/**
  * 保存经过校验的栅格参数和默认样式。
  */
 interface ResolvedGridOptions {
@@ -155,18 +181,25 @@ interface ResolvedGridOptions {
  * 保存可重复渲染的像素网格对象。
  */
 export class PixelArt {
+  // 裁剪后像素网格的列数。
   readonly columns: number
+  // 裁剪后像素网格的行数。
   readonly rows: number
+  // 从来源位图采样每个逻辑格时使用的像素边长。
   readonly sourcePixelSize: number
 
+  // 按行存储前景格状态的不可变二值掩码。
   private readonly mask: Uint8Array
+  // 与掩码索引一一对应的来源颜色。
   private readonly colors: string[]
+  // 当前网格用于后续重复绘制的默认视觉样式。
   private readonly style: PixelArtStyle
 
   /**
    * 复制并校验基础网格和默认样式。
    */
   constructor(data: PixelGridData, style: PixelArtStyle) {
+    // 掩码和颜色数组都必须覆盖完整逻辑网格。
     const expectedLength = data.columns * data.rows
 
     assertPositiveInteger(data.columns, 'data.columns')
@@ -193,8 +226,10 @@ export class PixelArt {
    * 返回所有有效前景格的快照。
    */
   get cells(): PixelArtCell[] {
+    // 对外返回新数组，避免调用方修改内部掩码。
     const cells: PixelArtCell[] = []
 
+    // 单次线性遍历把前景索引还原为二维坐标。
     for (let index = 0; index < this.mask.length; index += 1) {
       if (this.mask[index] !== 0) {
         cells.push({
@@ -212,9 +247,12 @@ export class PixelArt {
    * 计算指定渲染配置下的最终尺寸。
    */
   getDimensions(options: PixelRenderOptions = {}): PixelArtDimensions {
+    // 合并对象默认样式和当前调用覆盖项。
     const resolved = resolveRenderOptions(this.style, options)
+    // 关闭边线时单格步长不再包含额外间隔。
     const borderWidth =
       resolved.pixelBorder === false ? 0 : resolved.pixelBorder.width
+    // 单格步长包含彩色方块和共享内部边线。
     const cellStride = resolved.pixelSize + borderWidth
 
     return {
@@ -230,8 +268,24 @@ export class PixelArt {
    * 把当前像素网格绘制到指定 Canvas。
    */
   render(canvas: HTMLCanvasElement, options: PixelRenderOptions = {}): HTMLCanvasElement {
-    const resolved = resolveRenderOptions(this.style, options)
-    const dimensions = this.getDimensions(resolved)
+    // 文本 Canvas 使用普通 CSS color，来源图片仍保留原始颜色。
+    const canvasColor =
+      this.style.color !== 'source' && canvas.isConnected
+        ? window.getComputedStyle(canvas).color
+        : undefined
+    // 单次参数优先于 Canvas CSS，Canvas CSS 再覆盖文本默认色。
+    const resolved = resolveRenderOptions(this.style, {
+      ...options,
+      color: options.color ?? canvasColor,
+    })
+    // 自适应布局把外部 CSS 区域换算为物理像素坐标。
+    const layout = resolveCanvasRenderLayout(
+      canvas,
+      this.columns,
+      this.rows,
+      resolved,
+    )
+    // 复用目标 Canvas 的二维上下文完成所有硬边绘制。
     const context = canvas.getContext('2d', {
       alpha: true,
       willReadFrequently: false,
@@ -241,18 +295,21 @@ export class PixelArt {
       throw new Error('The browser could not create a 2D canvas context.')
     }
 
-    canvas.width = dimensions.width
-    canvas.height = dimensions.height
+    canvas.width = layout.canvasWidth
+    canvas.height = layout.canvasHeight
     context.clearRect(0, 0, canvas.width, canvas.height)
     context.imageSmoothingEnabled = false
 
+    // 文本可使用统一 CSS 色，图片则按格保留来源颜色。
     const fillPalette =
       resolved.color === 'source'
         ? undefined
         : createPixelPalette(resolved.color, this.columns, this.rows)
+    // 背景色仅在调用方明确配置时生成逐格色板。
     const backgroundPalette = resolved.background
       ? createPixelPalette(resolved.background, this.columns, this.rows)
       : undefined
+    // 内部边线可以使用纯色或渐变色板。
     const pixelBorderPalette =
       resolved.pixelBorder === false
         ? undefined
@@ -261,57 +318,73 @@ export class PixelArt {
             this.columns,
             this.rows,
           )
-    const borderWidth =
-      resolved.pixelBorder === false ? 0 : resolved.pixelBorder.width
-    const cellStride = resolved.pixelSize + borderWidth
+    // 物理边线宽度可能因可用空间不足降级为零。
+    const borderWidth = layout.borderWidth
+    // 物理单格步长用于定位所有方块和共享边线。
+    const cellStride = layout.cellStride
 
     if (backgroundPalette) {
+      // 背景按完整网格逐行填充。
       for (let y = 0; y < this.rows; y += 1) {
+        // 每列背景与对应逻辑格保持相同索引。
         for (let x = 0; x < this.columns; x += 1) {
+          // 当前逻辑格在行优先数组中的索引。
           const index = y * this.columns + x
-          const targetX = x * cellStride
-          const targetY = y * cellStride
+          // 当前格在目标 Canvas 中的物理横坐标。
+          const targetX = layout.offsetX + x * cellStride
+          // 当前格在目标 Canvas 中的物理纵坐标。
+          const targetY = layout.offsetY + y * cellStride
 
           context.fillStyle = backgroundPalette[index]
           context.fillRect(
-            targetX - borderWidth,
-            targetY - borderWidth,
-            resolved.pixelSize + borderWidth * 2,
-            resolved.pixelSize + borderWidth * 2,
+            targetX,
+            targetY,
+            cellStride,
+            cellStride,
           )
         }
       }
     }
 
-    if (pixelBorderPalette && resolved.pixelBorder !== false) {
-      drawPixelBorders(
-        context,
-        this.mask,
-        this.columns,
-        this.rows,
-        resolved.pixelSize,
-        cellStride,
-        pixelBorderPalette,
-        resolved.pixelBorder.width,
-      )
-    }
-
+    // 前景掩码按行绘制彩色正方形。
     for (let y = 0; y < this.rows; y += 1) {
+      // 每列仅处理对应掩码中的前景格。
       for (let x = 0; x < this.columns; x += 1) {
+        // 当前逻辑格在行优先数组中的索引。
         const index = y * this.columns + x
 
         if (this.mask[index] === 0) {
           continue
         }
 
+        // 当前前景格在目标 Canvas 中的物理横坐标。
+        const targetX = layout.offsetX + x * cellStride
+        // 当前前景格在目标 Canvas 中的物理纵坐标。
+        const targetY = layout.offsetY + y * cellStride
+
         fillSquare(
           context,
-          x * cellStride,
-          y * cellStride,
-          resolved.pixelSize,
+          targetX,
+          targetY,
+          layout.pixelSize,
           fillPalette?.[index] ?? this.colors[index],
         )
       }
+    }
+
+    if (pixelBorderPalette && borderWidth > 0) {
+      drawInternalPixelBorders(
+        context,
+        this.mask,
+        this.columns,
+        this.rows,
+        layout.pixelSize,
+        cellStride,
+        pixelBorderPalette,
+        borderWidth,
+        layout.offsetX,
+        layout.offsetY,
+      )
     }
 
     return canvas
@@ -338,12 +411,28 @@ export class PixelArt {
   ): string {
     return this.toCanvas(options).toDataURL(type, quality)
   }
+
+  /**
+   * 把当前掩码转换为可直接交给 DOM 像素组件使用的字符矩阵。
+   */
+  toPattern(filled = '1', empty = '.'): string[] {
+    if (filled.length !== 1 || empty.length !== 1) {
+      throw new Error('Pattern symbols must contain exactly one character.')
+    }
+
+    return Array.from({ length: this.rows }, (_, y) =>
+      Array.from({ length: this.columns }, (_, x) =>
+        this.mask[y * this.columns + x] === 0 ? empty : filled,
+      ).join(''),
+    )
+  }
 }
 
 /**
  * 集中保存可复用的默认生成配置。
  */
 export class PixelArtGenerator {
+  // 生成器实例为文本和图片复用的高级网格默认项。
   private readonly defaults: PixelGridOptions
 
   /**
@@ -357,16 +446,44 @@ export class PixelArtGenerator {
    * 把普通字体文本转换为硬边像素画对象。
    */
   async fromText(text: string, options: PixelTextOptions = {}): Promise<PixelArt> {
-    const merged = { ...DEFAULT_TEXT_OPTIONS, ...this.defaults, ...options }
-    const resolved = resolveGridOptions(merged, '#000000')
+    // 文本 CSS 参数覆盖站点默认值，高级生成器默认项保留内部采样能力。
+    const merged: ResolvedTextOptions = {
+      ...DEFAULT_TEXT_OPTIONS,
+      ...this.defaults,
+      ...options,
+    }
+    // 密度必须是有限正数，避免派生出无效采样格。
+    const density = merged.density ?? 16
+    assertPositiveNumber(density, 'density')
+    // CSS 字号和密度共同推导来源采样格，不向调用方暴露方块边长。
+    const sourcePixelSize = Math.max(
+      1,
+      Math.round((merged.fontSize ?? 92) / density),
+    )
+    // 统一校验采样参数并提取后续渲染样式。
+    const resolved = resolveGridOptions(
+      { ...merged, pixelSize: sourcePixelSize },
+      '#000000',
+    )
+    // 来源文字在透明 Canvas 中栅格化为可重复使用的紧凑网格。
     const data = await rasterizeText(text, {
       ...merged,
       ...resolved.raster,
     } as TextRasterOptions)
 
+    // 白线和彩色方块共同占据一个来源采样格的最终尺寸。
+    const borderWidth =
+      resolved.style.pixelBorder === false ? 0 : resolved.style.pixelBorder.width
+    // 来源格不足以容纳彩色块和白线时关闭内部边线。
+    const pixelBorder =
+      borderWidth > 0 && sourcePixelSize >= borderWidth * 2
+        ? resolved.style.pixelBorder
+        : false
+
     return new PixelArt(data, {
       ...resolved.style,
-      pixelSize: data.sourcePixelSize,
+      pixelBorder,
+      pixelSize: Math.max(1, data.sourcePixelSize - (pixelBorder === false ? 0 : borderWidth)),
     })
   }
 
@@ -374,8 +491,11 @@ export class PixelArtGenerator {
    * 加载图片地址并转换为硬边像素画对象。
    */
   async fromImage(source: string, options: PixelImageOptions = {}): Promise<PixelArt> {
+    // 图片调用参数覆盖图片默认值和生成器级高级配置。
     const merged = { ...DEFAULT_IMAGE_OPTIONS, ...this.defaults, ...options }
+    // 图片默认保留来源颜色，同时复用统一网格校验。
     const resolved = resolveGridOptions(merged, 'source')
+    // 加载后的图片被采样为带来源颜色的紧凑网格。
     const data = await rasterizeImage(source, {
       ...merged,
       ...resolved.raster,
@@ -395,6 +515,72 @@ export const pixelateText = (text: string, options?: PixelTextOptions) =>
   new PixelArtGenerator().fromText(text, options)
 
 /**
+ * 使用 JS 文本参数生成像素网格，并直接绘制到外部 Canvas。
+ */
+export async function renderPixelText(
+  canvas: HTMLCanvasElement,
+  text: string,
+  options: PixelTextOptions = {},
+): Promise<HTMLCanvasElement> {
+  // 生成与绘制共享同一份颜色和文本参数。
+  const art = await pixelateText(text, options)
+
+  return art.render(canvas, { color: options.color })
+}
+
+/**
+ * 读取普通 DOM 文本的浏览器行盒，并还原为显式换行字符串。
+ */
+export function readPixelTextLayout(layout: HTMLElement): string {
+  // Vue 或普通 DOM 文本节点提供需要还原的原始字符序列。
+  const textNode = layout.firstChild
+
+  if (!(textNode instanceof Text)) {
+    return layout.textContent ?? ''
+  }
+
+  // 每个数组项对应浏览器最终排版的一条可见文本行。
+  const lines: string[] = ['']
+  // 浏览器计算行高用于区分真实换行和标点字形的垂直偏移。
+  const style = window.getComputedStyle(layout)
+  // normal 行高回退到常规的 1.2 倍字号。
+  const lineHeight =
+    style.lineHeight === 'normal'
+      ? (Number.parseFloat(style.fontSize) || 16) * 1.2
+      : Number.parseFloat(style.lineHeight) || 19.2
+  // 最近一个可见字符的行盒顶部用于识别自动换行。
+  let currentTop: number | undefined
+
+  Array.from(textNode.data).forEach((glyph, index) => {
+    if (glyph === '\n') {
+      lines.push('')
+      currentTop = undefined
+      return
+    }
+
+    // 单字符 Range 提供浏览器排版后的真实行盒位置。
+    const range = document.createRange()
+    range.setStart(textNode, index)
+    range.setEnd(textNode, index + 1)
+    // 字符矩形顶部变化表示浏览器已经开始新行。
+    const top = range.getBoundingClientRect().top
+
+    if (
+      currentTop !== undefined &&
+      Math.abs(top - currentTop) > lineHeight * 0.75
+    ) {
+      lines.push('')
+      currentTop = top
+    }
+
+    lines[lines.length - 1] += glyph
+    currentTop ??= top
+  })
+
+  return lines.join('\n')
+}
+
+/**
  * 使用临时生成器把图片地址转换为 PixelArt。
  */
 export const pixelateImage = (source: string, options?: PixelImageOptions) =>
@@ -407,9 +593,13 @@ function resolveGridOptions(
   options: PixelGridOptions,
   defaultColor: PixelPaint | 'source',
 ): ResolvedGridOptions {
+  // 自动模式允许栅格化阶段根据来源笔画估算采样格。
   const pixelSize = options.pixelSize ?? 'auto'
+  // 自动采样允许使用的最小来源格尺寸。
   const minPixelSize = options.minPixelSize ?? 1
+  // 自动采样允许使用的最大来源格尺寸。
   const maxPixelSize = options.maxPixelSize ?? 64
+  // 裁剪后在逻辑网格外围保留的安全格数。
   const padding = options.padding ?? 0
 
   if (pixelSize !== 'auto') {
@@ -449,17 +639,19 @@ function resolveRenderOptions(
   style: PixelArtStyle,
   options: PixelRenderOptions,
 ): PixelArtStyle {
-  const pixelSize = options.pixelSize ?? style.pixelSize
-  assertPositiveInteger(pixelSize, 'pixelSize')
+  // 方块尺寸由文本字号与密度或图片采样结果确定，不接受单次覆盖。
+  const pixelSize = style.pixelSize
+  assertPositiveNumber(pixelSize, 'pixelSize')
 
+  // 未传边线配置时沿用像素对象生成时保存的默认值。
   const pixelBorder =
     options.pixelBorder === undefined
       ? style.pixelBorder
       : resolvePixelBorder(options.pixelBorder)
 
-  if (pixelBorder !== false && pixelBorder.width >= pixelSize) {
+  if (pixelBorder !== false && pixelBorder.width > pixelSize) {
     throw new Error(
-      'pixelBorder.width must be smaller than pixelSize.',
+      'pixelBorder.width cannot be greater than pixelSize.',
     )
   }
 
@@ -475,6 +667,108 @@ function resolveRenderOptions(
 }
 
 /**
+ * 根据 Canvas 的 CSS 尺寸计算居中的整数像素布局，未挂载 Canvas 则保留原始输出尺寸。
+ */
+function resolveCanvasRenderLayout(
+  canvas: HTMLCanvasElement,
+  columns: number,
+  rows: number,
+  style: PixelArtStyle,
+): CanvasRenderLayout {
+  // 已挂载 Canvas 的 CSS 尺寸是最终布局边界。
+  const cssWidth = canvas.isConnected ? canvas.clientWidth : 0
+  // 高度与宽度独立读取，避免仅按宽度缩放后越过外部区域。
+  const cssHeight = canvas.isConnected ? canvas.clientHeight : 0
+  // 物理像素倍率保证浏览器缩放后方块和内部边线仍落在整数坐标上。
+  const pixelRatio =
+    typeof window === 'undefined' ? 1 : Math.max(0.5, window.devicePixelRatio || 1)
+  // 逻辑单格步长由彩色块和可为小数的 CSS 内线共同组成。
+  const desiredStride =
+    style.pixelSize + (style.pixelBorder === false ? 0 : style.pixelBorder.width)
+  // 配置中的边线宽度先换算到物理像素。
+  const configuredBorderWidth =
+    style.pixelBorder === false
+      ? 0
+      : Math.max(1, Math.round(style.pixelBorder.width * pixelRatio))
+
+  if (cssWidth <= 0 || cssHeight <= 0) {
+    // 离屏输出把逻辑步长量化到 DPR 1 的完整物理像素。
+    const cellStride = Math.max(1, Math.round(desiredStride))
+    // 小数内线在离屏位图中至少占据一个物理像素。
+    const borderWidth =
+      style.pixelBorder !== false && cellStride > 1
+        ? Math.min(cellStride - 1, Math.max(1, Math.round(style.pixelBorder.width)))
+        : 0
+    // 彩色方块占据离屏步长扣除内线后的剩余像素。
+    const pixelSize = Math.max(1, cellStride - borderWidth)
+
+    return {
+      canvasWidth: columns * cellStride - borderWidth,
+      canvasHeight: rows * cellStride - borderWidth,
+      pixelSize,
+      borderWidth,
+      cellStride,
+      offsetX: 0,
+      offsetY: 0,
+    }
+  }
+
+  // Canvas backing store 与 CSS 区域按当前 DPR 对齐。
+  const canvasWidth = Math.max(1, Math.round(cssWidth * pixelRatio))
+  // 高度同样量化为物理整数，避免浏览器缩放产生半像素。
+  const canvasHeight = Math.max(1, Math.round(cssHeight * pixelRatio))
+  // 当前区域能够容纳的最大完整单格步长。
+  const fittedStride = Math.max(
+    1,
+    Math.floor(
+      Math.min(
+        (canvasWidth + configuredBorderWidth) / columns,
+        (canvasHeight + configuredBorderWidth) / rows,
+      ),
+    ),
+  )
+  // 字号和密度推导出的方块尺寸作为期望上限，空间不足时才缩小。
+  const requestedStride = Math.max(
+    1,
+    Math.round(desiredStride * pixelRatio),
+  )
+  // 最终步长始终取可放入 Canvas 的整数值。
+  const cellStride = Math.min(fittedStride, requestedStride)
+  // 至少保留 1px 彩色块，允许最小的 1px 方块与 1px 内线组合。
+  const borderWidth =
+    configuredBorderWidth > 0 && cellStride - configuredBorderWidth >= 1
+      ? configuredBorderWidth
+      : 0
+  // 彩色像素块占据步长扣除共享边线后的剩余区域。
+  const pixelSize = Math.max(1, cellStride - borderWidth)
+  // 实际文字网格宽度用于计算 CSS text-align 对应的水平留白。
+  const artWidth = columns * cellStride - borderWidth
+  // 实际文字网格高度用于垂直居中。
+  const artHeight = rows * cellStride - borderWidth
+  // Canvas 继承的 text-align 决定文字在外部 CSS 区域中的水平位置。
+  const textAlign = window.getComputedStyle(canvas).textAlign
+  // 文字区域扣除实际网格后的剩余水平空间。
+  const horizontalSpace = Math.max(0, canvasWidth - artWidth)
+  // left/start、center 和 right/end 分别映射到普通文本的水平对齐行为。
+  const offsetX =
+    textAlign === 'center'
+      ? Math.floor(horizontalSpace / 2)
+      : textAlign === 'right' || textAlign === 'end'
+        ? horizontalSpace
+        : 0
+
+  return {
+    canvasWidth,
+    canvasHeight,
+    pixelSize,
+    borderWidth,
+    cellStride,
+    offsetX,
+    offsetY: Math.max(0, Math.floor((canvasHeight - artHeight) / 2)),
+  }
+}
+
+/**
  * 把像素分隔边线配置转换为内部完整结构。
  */
 function resolvePixelBorder(
@@ -484,8 +778,9 @@ function resolvePixelBorder(
     return false
   }
 
+  // 内部共享边线默认使用一个逻辑像素宽度，也允许 CSS 小数宽度。
   const width = pixelBorder.width ?? 1
-  assertPositiveInteger(width, 'pixelBorder.width')
+  assertPositiveNumber(width, 'pixelBorder.width')
 
   return {
     width,
@@ -508,11 +803,9 @@ function fillSquare(
 }
 
 /**
- * 只在相邻前景像素之间绘制不占用块尺寸的共享白线。
- *
- * 接触背景的外侧边不会产生白线，内部交叉点则补成连续的单像素网格。
+ * 只绘制相邻前景方块之间的共享边线，不描绘字符外轮廓。
  */
-function drawPixelBorders(
+function drawInternalPixelBorders(
   context: CanvasRenderingContext2D,
   mask: Uint8Array,
   columns: number,
@@ -521,65 +814,80 @@ function drawPixelBorders(
   cellStride: number,
   palette: string[],
   width: number,
+  offsetX: number,
+  offsetY: number,
 ) {
-  // 网格范围外的位置始终视为空白。
+  // 统一处理边界并判断指定逻辑格是否属于前景。
   const isForeground = (x: number, y: number) =>
     x >= 0 && y >= 0 && x < columns && y < rows && mask[y * columns + x] !== 0
 
+  // 第一遍只绘制向右和向下的共享边，避免同一边重复覆盖。
   for (let y = 0; y < rows; y += 1) {
     for (let x = 0; x < columns; x += 1) {
+      // 当前逻辑格在行优先掩码中的索引。
       const index = y * columns + x
 
       if (mask[index] === 0) {
         continue
       }
 
-      const targetX = x * cellStride
-      const targetY = y * cellStride
       context.fillStyle = palette[index]
 
-      if (isForeground(x - 1, y)) {
-        context.fillRect(targetX - width, targetY, width, pixelSize)
-      }
-
       if (isForeground(x + 1, y)) {
-        context.fillRect(targetX + pixelSize, targetY, width, pixelSize)
-      }
-
-      if (isForeground(x, y - 1)) {
-        context.fillRect(targetX, targetY - width, pixelSize, width)
+        context.fillRect(
+          offsetX + x * cellStride + pixelSize,
+          offsetY + y * cellStride,
+          width,
+          pixelSize,
+        )
       }
 
       if (isForeground(x, y + 1)) {
-        context.fillRect(targetX, targetY + pixelSize, pixelSize, width)
+        context.fillRect(
+          offsetX + x * cellStride,
+          offsetY + y * cellStride + pixelSize,
+          pixelSize,
+          width,
+        )
       }
     }
   }
 
+  // 第二遍补齐至少连接两条内部边线的交叉点。
   for (let y = 1; y < rows; y += 1) {
     for (let x = 1; x < columns; x += 1) {
+      // 交叉点上方是否存在一条连续共享边。
+      const hasTopEdge = isForeground(x - 1, y - 1) && isForeground(x, y - 1)
+      // 交叉点下方是否存在一条连续共享边。
+      const hasBottomEdge = isForeground(x - 1, y) && isForeground(x, y)
+      // 交叉点左侧是否存在一条连续共享边。
+      const hasLeftEdge = isForeground(x - 1, y - 1) && isForeground(x - 1, y)
+      // 交叉点右侧是否存在一条连续共享边。
+      const hasRightEdge = isForeground(x, y - 1) && isForeground(x, y)
+      // 只有真正的内部连接处才需要补方形交点。
       const connectedEdgeCount =
-        Number(isForeground(x - 1, y - 1) && isForeground(x, y - 1)) +
-        Number(isForeground(x - 1, y) && isForeground(x, y)) +
-        Number(isForeground(x - 1, y - 1) && isForeground(x - 1, y)) +
-        Number(isForeground(x, y - 1) && isForeground(x, y))
+        Number(hasTopEdge) +
+        Number(hasBottomEdge) +
+        Number(hasLeftEdge) +
+        Number(hasRightEdge)
 
       if (connectedEdgeCount < 2) {
         continue
       }
 
-      const paletteIndex =
-        Math.min(y, rows - 1) * columns + Math.min(x, columns - 1)
+      // 交点颜色取右下相邻格，确保纯色和渐变色板都保持连续。
+      const paletteIndex = Math.min(y, rows - 1) * columns + Math.min(x, columns - 1)
       context.fillStyle = palette[paletteIndex]
       context.fillRect(
-        x * cellStride - width,
-        y * cellStride - width,
+        offsetX + x * cellStride - width,
+        offsetY + y * cellStride - width,
         width,
         width,
       )
     }
   }
 }
+
 /**
  * 断言配置值为正整数。
  */
@@ -636,10 +944,9 @@ interface TextRasterOptions extends RasterOptions {
   fontFamily?: string
   fontSize?: number
   fontStyle?: 'normal' | 'italic' | 'oblique'
-  fontWeight?: number | string
   letterSpacing?: number
   lineHeight?: number
-  awaitFont?: boolean
+  textAlign?: 'left' | 'center' | 'right'
   signal?: AbortSignal
 }
 
@@ -685,6 +992,7 @@ interface Bounds {
   height: number
 }
 
+// 限制来源位图尺寸，避免高分辨率图片占用过多浏览器内存。
 const DEFAULT_MAX_SOURCE_SIZE = 2048
 
 /**
@@ -698,10 +1006,27 @@ async function rasterizeText(
     throw new Error('Pixel text cannot be empty.')
   }
 
+  // 文本先按普通字体 CSS 绘制为透明来源位图。
   const canvas = await createTextCanvas(text, options)
   throwIfAborted(options.signal)
 
-  return rasterizeCanvas(canvas, options, 'transparent', 'text')
+  // 固定网格直接采样，自动网格则根据字号提高最低采样精度。
+  const rasterOptions =
+    options.pixelSize === 'auto'
+      ? {
+          ...options,
+          minPixelSize: Math.max(
+            options.minPixelSize,
+            clamp(
+              Math.round((options.fontSize ?? 96) / 16),
+              options.minPixelSize,
+              options.maxPixelSize,
+            ),
+          ),
+        }
+      : options
+
+  return rasterizeCanvas(canvas, rasterOptions, 'transparent', 'text')
 }
 
 /**
@@ -715,6 +1040,7 @@ async function rasterizeImage(
     throw new Error('The image URL cannot be empty.')
   }
 
+  // 完成跨域和取消处理后再把图片交给 Canvas。
   const image = await loadImage(source, options)
   throwIfAborted(options.signal)
 
@@ -734,13 +1060,17 @@ async function createTextCanvas(
   text: string,
   options: TextRasterOptions,
 ): Promise<HTMLCanvasElement> {
+  // 来源字号决定浏览器字体测量精度，不直接限制最终 Canvas 区域。
   const fontSize = options.fontSize ?? 64
+  // 多行基线间距默认沿用常见的 1.2 倍字号比例。
   const lineHeight = options.lineHeight ?? fontSize * 1.2
+  // 额外字距按 CSS 像素参与每行宽度测量。
   const letterSpacing = options.letterSpacing ?? 0
+  // 字体简写固定使用已验证的 400 掩码字重。
   const font =
     (options.fontStyle ?? 'normal') +
     ' ' +
-    (options.fontWeight ?? 700) +
+    TEXT_MASK_FONT_WEIGHT +
     ' ' +
     fontSize +
     'px ' +
@@ -755,24 +1085,33 @@ async function createTextCanvas(
 
   ensureBrowser()
 
-  if (options.awaitFont !== false && 'fonts' in document) {
+  if ('fonts' in document) {
     await document.fonts.load(font, text)
   }
 
   throwIfAborted(options.signal)
 
+  // 独立测量 Canvas 避免污染最终来源位图状态。
   const measureCanvas = document.createElement('canvas')
+  // 文本宽高和字形边界均由同一个二维上下文测量。
   const measureContext = getContext(measureCanvas)
+  // 换行符拆分后的每一项对应来源画布中的一条文本行。
   const lines = text.split(/\r?\n/)
 
   measureContext.font = font
   measureContext.textBaseline = 'alphabetic'
 
+  // 每行测量结果包含额外字距和实际字形上下边界。
   const metrics = lines.map((line) => measureLine(measureContext, line, letterSpacing))
+  // 最宽文本行决定来源画布的内容宽度。
   const maxWidth = Math.max(...metrics.map((line) => line.width), 1)
+  // 所有行共享最大上升高度，避免不同字符导致基线跳动。
   const ascent = Math.max(...metrics.map((line) => line.ascent), fontSize * 0.8)
+  // 所有行共享最大下降高度，确保下探笔画不会被裁掉。
   const descent = Math.max(...metrics.map((line) => line.descent), fontSize * 0.2)
+  // 来源位图外围留出抗裁切空间，最终栅格阶段会再次紧凑裁剪。
   const padding = Math.ceil(fontSize * 0.25) + 2
+  // 最终来源 Canvas 只承载待采样的黑色文字掩码。
   const canvas = document.createElement('canvas')
 
   canvas.width = Math.max(1, Math.ceil(maxWidth + padding * 2))
@@ -781,16 +1120,27 @@ async function createTextCanvas(
     Math.ceil(ascent + descent + lineHeight * (lines.length - 1) + padding * 2),
   )
 
+  // 绘制上下文复用测量阶段相同的字体简写和基线规则。
   const context = getContext(canvas)
   context.font = font
   context.textBaseline = 'alphabetic'
   context.fillStyle = '#000000'
 
   lines.forEach((line, index) => {
+    // 当前行宽度用于计算相对于最宽行的对齐偏移。
+    const lineWidth = metrics[index].width
+    // 对齐偏移只改变来源行位置，不改变最终外部 Canvas 布局。
+    const alignOffset =
+      options.textAlign === 'center'
+        ? (maxWidth - lineWidth) / 2
+        : options.textAlign === 'right'
+          ? maxWidth - lineWidth
+          : 0
+
     drawLine(
       context,
       line,
-      padding,
+      padding + alignOffset,
       padding + ascent + index * lineHeight,
       letterSpacing,
     )
@@ -807,7 +1157,9 @@ function measureLine(
   text: string,
   letterSpacing: number,
 ) {
+  // Unicode 字符数组用于准确计算字符间额外字距数量。
   const glyphs = Array.from(text)
+  // 浏览器字体度量提供基础宽度和实际字形上下边界。
   const metrics = context.measureText(text || ' ')
 
   return {
@@ -832,6 +1184,7 @@ function drawLine(
     return
   }
 
+  // 非零字距模式逐字推进当前绘制横坐标。
   let cursor = x
 
   Array.from(text).forEach((glyph) => {
@@ -850,7 +1203,9 @@ function loadImage(
   ensureBrowser()
 
   return new Promise((resolve, reject) => {
+    // 独立图片元素承载加载、解码和跨域配置。
     const image = new Image()
+    // 取消时释放来源地址并以标准 AbortError 结束 Promise。
     const abort = () => {
       image.src = ''
       reject(createAbortError())
@@ -889,21 +1244,26 @@ function drawImageToCanvas(
   image: HTMLImageElement,
   options: ImageRasterOptions,
 ): HTMLCanvasElement {
+  // 来源图片允许进入采样阶段的最大宽度。
   const maxWidth = options.maxWidth ?? DEFAULT_MAX_SOURCE_SIZE
+  // 来源图片允许进入采样阶段的最大高度。
   const maxHeight = options.maxHeight ?? DEFAULT_MAX_SOURCE_SIZE
 
   assertPositiveInteger(maxWidth, 'maxWidth')
   assertPositiveInteger(maxHeight, 'maxHeight')
 
+  // 仅缩小超出限制的图片，避免无意义放大和插值。
   const scale = Math.min(
     1,
     maxWidth / image.naturalWidth,
     maxHeight / image.naturalHeight,
   )
+  // 来源 Canvas 使用限制后的实际位图尺寸。
   const canvas = document.createElement('canvas')
   canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
   canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
 
+  // 仅原始尺寸绘制允许平滑，缩小时保持来源边界明确。
   const context = getContext(canvas)
   context.imageSmoothingEnabled = scale === 1
   context.drawImage(image, 0, 0, canvas.width, canvas.height)
@@ -921,7 +1281,9 @@ function rasterizeCanvas(
   sourceKind: RasterSourceKind,
   backgroundThreshold = 0.08,
 ): PixelGridData {
+  // 频繁读取模式用于一次性提取完整来源位图数据。
   const context = getContext(canvas, true)
+  // 来源 RGBA 数据在读取失败时转换为明确的跨域错误。
   let imageData: ImageData
 
   try {
@@ -933,28 +1295,37 @@ function rasterizeCanvas(
     )
   }
 
+  // 来源掩码根据透明度和可选背景色区分前景。
   const sourceMask = createSourceMask(
     imageData,
     sourceBackground,
     options.alphaThreshold,
     backgroundThreshold,
   )
+  // 前景边界用于裁掉来源位图外围空白。
   const sourceBounds = findBounds(sourceMask, imageData.width, imageData.height)
 
   if (!sourceBounds) {
     throw new Error('No foreground pixels were found after applying the thresholds.')
   }
 
+  // 最终采样格来自显式网格值或来源笔画宽度估算。
   const sourcePixelSize =
     options.pixelSize === 'auto'
-      ? estimateFeatureWidth(
-          sourceMask,
-          imageData.width,
-          imageData.height,
+      ? resolveAutomaticPixelSize(
+          sourceKind,
+          estimateFeatureWidth(
+            sourceMask,
+            imageData.width,
+            imageData.height,
+            options.minPixelSize,
+            options.maxPixelSize,
+          ),
           options.minPixelSize,
           options.maxPixelSize,
         )
       : options.pixelSize
+  // 关闭裁剪时保留来源 Canvas 的完整逻辑区域。
   const bounds = options.trim
     ? sourceBounds
     : { x: 0, y: 0, width: imageData.width, height: imageData.height }
@@ -967,8 +1338,25 @@ function rasterizeCanvas(
     options.coverageThreshold,
     options.padding,
     options.trim,
+    sourceKind === 'text',
     sourceKind === 'image',
   )
+}
+
+/**
+ * 文本使用半笔画左右的采样格，确保主笔画稳定保留两格厚度。
+ */
+function resolveAutomaticPixelSize(
+  sourceKind: RasterSourceKind,
+  featureWidth: number,
+  minimum: number,
+  maximum: number,
+): number {
+  if (sourceKind === 'image') {
+    return featureWidth
+  }
+
+  return clamp(Math.round(featureWidth * 0.55), minimum, maximum)
 }
 
 /**
@@ -980,8 +1368,11 @@ function createSourceMask(
   alphaThreshold: number,
   backgroundThreshold: number,
 ): Uint8Array {
+  // 二值掩码与来源位图像素一一对应。
   const mask = new Uint8Array(imageData.width * imageData.height)
+  // 透明度阈值预先换算为 0 至 255 通道值。
   const alphaCutoff = alphaThreshold * 255
+  // 背景可以来自显式颜色、边缘推断或透明模式。
   const background = resolveBackground(imageData, sourceBackground)
 
   for (let index = 0; index < mask.length; index += 1) {
@@ -1026,7 +1417,9 @@ function resolveBackground(
     return parseCssColor(sourceBackground)
   }
 
+  // 自动背景只分析图片四条边上的候选像素。
   const borderIndexes = getBorderIndexes(imageData.width, imageData.height)
+  // 边缘存在明显透明区域时不再假设图片拥有实色背景。
   const transparentCount = borderIndexes.reduce(
     (count, index) => count + (imageData.data[index * 4 + 3] < 250 ? 1 : 0),
     0,
@@ -1043,6 +1436,7 @@ function resolveBackground(
  * 收集图片四条边上的像素索引。
  */
 function getBorderIndexes(width: number, height: number): number[] {
+  // 索引数组覆盖四边且避免重复加入角点。
   const indexes: number[] = []
 
   for (let x = 0; x < width; x += 1) {
@@ -1060,6 +1454,7 @@ function getBorderIndexes(width: number, height: number): number[] {
  * 从边缘像素中估算稳定的背景颜色。
  */
 function dominantBorderColor(imageData: ImageData, indexes: number[]): RgbaColor {
+  // 颜色按每通道高四位分桶，降低轻微压缩噪声的影响。
   const buckets = new Map<
     number,
     { count: number; r: number; g: number; b: number; a: number }
@@ -1082,6 +1477,7 @@ function dominantBorderColor(imageData: ImageData, indexes: number[]): RgbaColor
     buckets.set(key, bucket)
   })
 
+  // 像素数量最多的颜色桶代表稳定背景候选。
   const dominant = [...buckets.values()].sort((left, right) => right.count - left.count)[0]
 
   return {
@@ -1096,11 +1492,17 @@ function dominantBorderColor(imageData: ImageData, indexes: number[]): RgbaColor
  * 计算两种 RGBA 颜色的归一化感知距离。
  */
 function colorDistance(left: RgbaColor, right: RgbaColor): number {
+  // 平均红色通道用于调整人眼感知距离中的通道权重。
   const redMean = (left.r + right.r) / 2
+  // 红色通道差值。
   const red = left.r - right.r
+  // 绿色通道差值。
   const green = left.g - right.g
+  // 蓝色通道差值。
   const blue = left.b - right.b
+  // 透明度通道差值。
   const alpha = left.a - right.a
+  // 加权欧氏距离兼顾颜色和透明度差异。
   const weighted = Math.sqrt(
     (2 + redMean / 256) * red * red +
       4 * green * green +
@@ -1121,7 +1523,9 @@ function estimateFeatureWidth(
   minimum: number,
   maximum: number,
 ): number {
+  // 双向距离变换保存每个前景像素到最近背景的距离。
   const distances = new Uint16Array(mask.length)
+  // 初始上限必须大于位图中可能出现的任何有效距离。
   const limit = Math.max(width, height) + 1
 
   for (let index = 0; index < mask.length; index += 1) {
@@ -1164,6 +1568,7 @@ function estimateFeatureWidth(
     }
   }
 
+  // 局部距离峰值的两倍近似代表稳定笔画宽度。
   const widths: number[] = []
 
   for (let y = 0; y < height; y += 1) {
@@ -1180,6 +1585,7 @@ function estimateFeatureWidth(
     return minimum
   }
 
+  // 存在正常笔画时排除单像素噪声，否则保留细线结果。
   const meaningful = widths.some((value) => value > 2)
     ? widths.filter((value) => value > 2)
     : widths
@@ -1246,11 +1652,16 @@ function sampleGrid(
   coverageThreshold: number,
   padding: number,
   trim: boolean,
+  preserveThinFeatures: boolean,
   repairBackgroundGaps: boolean,
 ): PixelGridData {
+  // 采样区域按来源格尺寸切分后的逻辑列数。
   const columns = Math.ceil(bounds.width / pixelSize)
+  // 采样区域按来源格尺寸切分后的逻辑行数。
   const rows = Math.ceil(bounds.height / pixelSize)
+  // 输出二值掩码记录每个逻辑格是否达到前景条件。
   const mask = new Uint8Array(columns * rows)
+  // 输出颜色数组保存每个前景格的来源平均色。
   const colors = Array<string>(columns * rows).fill('rgba(0, 0, 0, 0)')
 
   for (let gridY = 0; gridY < rows; gridY += 1) {
@@ -1259,10 +1670,15 @@ function sampleGrid(
       const startY = bounds.y + gridY * pixelSize
       const endX = Math.min(startX + pixelSize, bounds.x + bounds.width)
       const endY = Math.min(startY + pixelSize, bounds.y + bounds.height)
+      // 当前逻辑格内命中的来源前景像素数量。
       let count = 0
+      // 当前逻辑格来源前景的红色通道累加值。
       let red = 0
+      // 当前逻辑格来源前景的绿色通道累加值。
       let green = 0
+      // 当前逻辑格来源前景的蓝色通道累加值。
       let blue = 0
+      // 当前逻辑格来源前景的透明度通道累加值。
       let alpha = 0
 
       for (let sourceY = startY; sourceY < endY; sourceY += 1) {
@@ -1282,9 +1698,23 @@ function sampleGrid(
         }
       }
 
+      // 当前采样格的实际来源像素面积，边缘格可能小于标准尺寸。
       const area = Math.max(1, (endX - startX) * (endY - startY))
+      // 采样格中心横坐标用于细笔画保留判断。
+      const centerX = Math.min(endX - 1, Math.floor((startX + endX) / 2))
+      // 采样格中心纵坐标用于细笔画保留判断。
+      const centerY = Math.min(endY - 1, Math.floor((startY + endY) / 2))
+      // 穿过采样格中心的来源前景可以保留低覆盖率细笔画。
+      const centerIsForeground = sourceMask[centerY * imageData.width + centerX] !== 0
+      // 前景覆盖率决定当前逻辑格是否被点亮。
+      const coverage = count / area
+      // 文本细笔画使用更低阈值，但必须经过采样格中心。
+      const keepsThinFeature =
+        preserveThinFeatures &&
+        centerIsForeground &&
+        coverage >= coverageThreshold * 0.45
 
-      if (count / area < coverageThreshold) {
+      if (coverage < coverageThreshold && !keepsThinFeature) {
         continue
       }
 
@@ -1312,6 +1742,7 @@ function sampleGrid(
     )
   }
 
+  // 输出裁剪边界来自已经完成阈值采样的逻辑网格。
   const gridBounds = trim ? findBounds(mask, columns, rows) : undefined
 
   if (trim && !gridBounds) {
@@ -1346,6 +1777,7 @@ function preserveBoundedBackgroundGaps(
   columns: number,
   rows: number,
 ) {
+  // 修复判断始终基于采样完成时的原始网格，避免本轮修改互相影响。
   const originalMask = gridMask.slice()
 
   // 网格范围外的位置始终视为空白。
@@ -1364,10 +1796,13 @@ function preserveBoundedBackgroundGaps(
       const startY = bounds.y + gridY * pixelSize
       const endX = Math.min(startX + pixelSize, bounds.x + bounds.width)
       const endY = Math.min(startY + pixelSize, bounds.y + bounds.height)
+      // 标记来源格中是否存在一整行背景通道。
       let hasHorizontalBackgroundChannel = false
+      // 标记来源格中是否存在一整列背景通道。
       let hasVerticalBackgroundChannel = false
 
       for (let sourceY = startY; sourceY < endY; sourceY += 1) {
+        // 当前来源行只有全部为空白时才构成有效水平通道。
         let rowIsBackground = true
 
         for (let sourceX = startX; sourceX < endX; sourceX += 1) {
@@ -1384,6 +1819,7 @@ function preserveBoundedBackgroundGaps(
       }
 
       for (let sourceX = startX; sourceX < endX; sourceX += 1) {
+        // 当前来源列只有全部为空白时才构成有效垂直通道。
         let columnIsBackground = true
 
         for (let sourceY = startY; sourceY < endY; sourceY += 1) {
@@ -1399,10 +1835,12 @@ function preserveBoundedBackgroundGaps(
         }
       }
 
+      // 水平背景通道且上下均为前景表示采样误桥接了纵向笔画。
       const bridgesVerticalStrokes =
         hasHorizontalBackgroundChannel &&
         hasGridForeground(gridX, gridY - 1) &&
         hasGridForeground(gridX, gridY + 1)
+      // 垂直背景通道且左右均为前景表示采样误桥接了横向笔画。
       const bridgesHorizontalStrokes =
         hasVerticalBackgroundChannel &&
         hasGridForeground(gridX - 1, gridY) &&
@@ -1429,9 +1867,13 @@ function cropAndPad(
   padding: number,
   sourcePixelSize: number,
 ): PixelGridData {
+  // 输出列数包含裁剪区域和两侧逻辑留白。
   const columns = bounds.width + padding * 2
+  // 输出行数包含裁剪区域和上下逻辑留白。
   const rows = bounds.height + padding * 2
+  // 新掩码承载裁剪平移后的前景状态。
   const targetMask = new Uint8Array(columns * rows)
+  // 新颜色数组与裁剪后的掩码保持相同索引结构。
   const targetColors = Array<string>(columns * rows).fill('rgba(0, 0, 0, 0)')
 
   for (let y = 0; y < bounds.height; y += 1) {
@@ -1467,9 +1909,13 @@ function findBounds(
   width: number,
   height: number,
 ): Bounds | undefined {
+  // 最小横坐标从右边界开始向前景收缩。
   let minX = width
+  // 最小纵坐标从下边界开始向前景收缩。
   let minY = height
+  // 最大横坐标使用负值表示尚未发现前景。
   let maxX = -1
+  // 最大纵坐标使用负值表示尚未发现前景。
   let maxY = -1
 
   for (let y = 0; y < height; y += 1) {
@@ -1501,6 +1947,7 @@ function findBounds(
  * 获取 Canvas 2D 上下文并处理失败状态。
  */
 function getContext(canvas: HTMLCanvasElement, willReadFrequently = false) {
+  // 所有工具路径使用带透明通道的二维上下文。
   const context = canvas.getContext('2d', { alpha: true, willReadFrequently })
 
   if (!context) {
@@ -1556,21 +2003,26 @@ interface ColorStop {
  * 把 CSS 颜色或渐变采样为逻辑像素调色板。
  */
 function createPixelPalette(paint: string, width: number, height: number): string[] {
+  // 纯色无需创建中间 Canvas，可直接填充完整色板。
   const solid = tryParseCssColor(paint)
 
   if (solid) {
     return Array<string>(width * height).fill(toRgbaString(solid))
   }
 
+  // 渐变先在逻辑网格尺寸的离屏 Canvas 中完成采样。
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
 
+  // 读取渐变像素需要启用频繁读取优化。
   const context = getContext(canvas, true)
   context.fillStyle = createGradient(context, paint, width, height)
   context.fillRect(0, 0, width, height)
 
+  // 渐变位图通道用于生成逐格 Canvas 颜色字符串。
   const data = context.getImageData(0, 0, width, height).data
+  // 色板索引与像素网格索引保持一一对应。
   const palette = Array<string>(width * height)
 
   for (let index = 0; index < palette.length; index += 1) {
@@ -1590,6 +2042,7 @@ function createPixelPalette(paint: string, width: number, height: number): strin
  * 把 CSS 纯色字符串解析为 RGBA 通道。
  */
 function parseCssColor(value: string): RgbaColor {
+  // Canvas 解析结果同时承担格式校验和通道归一化。
   const color = tryParseCssColor(value)
 
   if (!color) {
@@ -1603,6 +2056,7 @@ function parseCssColor(value: string): RgbaColor {
  * 把 RGBA 通道转换为 Canvas 颜色字符串。
  */
 function toRgbaString(color: RgbaColor): string {
+  // Canvas 颜色字符串使用 0 至 1 的透明度范围。
   const alpha = clamp(color.a / 255, 0, 1)
 
   return (
@@ -1627,13 +2081,16 @@ function createGradient(
   width: number,
   height: number,
 ): CanvasGradient {
+  // 顶层正则只提取渐变函数名和参数主体。
   const match = paint.trim().match(/^([a-z-]+)\((.*)\)$/is)
 
   if (!match) {
     throw new Error('Unsupported pixel paint: ' + paint)
   }
 
+  // 规范化函数名用于选择具体渐变解析路径。
   const type = match[1].toLowerCase()
+  // 参数按最外层逗号拆分，保留内部颜色函数结构。
   const parts = splitTopLevel(match[2])
 
   if (type === 'linear-gradient') {
@@ -1664,7 +2121,9 @@ function createLinearGradient(
   width: number,
   height: number,
 ): CanvasGradient {
+  // CSS 线性渐变默认方向为从上到下。
   let direction = '180deg'
+  // 未声明方向时所有参数都视为颜色色标。
   let stopParts = parts
 
   if (parts[0] && isGradientDirection(parts[0])) {
@@ -1672,12 +2131,19 @@ function createLinearGradient(
     stopParts = parts.slice(1)
   }
 
+  // CSS 方向转换为 Canvas 使用的弧度。
   const angle = parseLinearAngle(direction)
+  // 渐变方向在横轴上的单位分量。
   const directionX = Math.sin(angle)
+  // 渐变方向在纵轴上的单位分量。
   const directionY = -Math.cos(angle)
+  // 投影跨度确保渐变覆盖整个逻辑网格。
   const span = Math.abs(directionX) * width + Math.abs(directionY) * height
+  // 逻辑网格水平中心作为渐变线中点。
   const centerX = width / 2
+  // 逻辑网格垂直中心作为渐变线中点。
   const centerY = height / 2
+  // Canvas 线性渐变端点围绕网格中心对称分布。
   const gradient = context.createLinearGradient(
     centerX - (directionX * span) / 2,
     centerY - (directionY * span) / 2,
@@ -1698,7 +2164,9 @@ function createRadialGradient(
   width: number,
   height: number,
 ): CanvasGradient {
+  // 可选形状和中心位置定义，空值表示默认中心。
   let definition = ''
+  // 去除定义项后剩余参数均作为颜色色标。
   let stopParts = parts
 
   if (parts[0] && !looksLikeColorStop(parts[0])) {
@@ -1706,13 +2174,16 @@ function createRadialGradient(
     stopParts = parts.slice(1)
   }
 
+  // 径向渐变中心来自 CSS at 位置或网格中心。
   const position = parsePosition(definition, width, height)
+  // 最大角点距离确保最外层颜色覆盖整个网格。
   const radius = Math.max(
     Math.hypot(position.x, position.y),
     Math.hypot(width - position.x, position.y),
     Math.hypot(position.x, height - position.y),
     Math.hypot(width - position.x, height - position.y),
   )
+  // 内圆半径为零，外圆半径覆盖最远角点。
   const gradient = context.createRadialGradient(
     position.x,
     position.y,
@@ -1735,7 +2206,9 @@ function createConicGradient(
   width: number,
   height: number,
 ): CanvasGradient {
+  // 可选起始角和中心位置定义，空值使用 CSS 默认语义。
   let definition = ''
+  // 去除定义项后剩余参数均作为颜色色标。
   let stopParts = parts
 
   if (parts[0] && !looksLikeColorStop(parts[0])) {
@@ -1743,11 +2216,15 @@ function createConicGradient(
     stopParts = parts.slice(1)
   }
 
+  // from 子句决定锥形渐变的起始角度。
   const fromMatch = definition.match(/\bfrom\s+(-?[\d.]+)(deg|rad|turn)?/i)
+  // Canvas 零角与 CSS 零角相差四分之一圈，需要统一坐标系。
   const startAngle = fromMatch
     ? parseAngle(fromMatch[1] + (fromMatch[2] ?? 'deg')) - Math.PI / 2
     : -Math.PI / 2
+  // 锥形渐变中心来自 CSS at 位置或网格中心。
   const position = parsePosition(definition, width, height)
+  // Canvas 原生锥形渐变承担最终颜色插值。
   const gradient = context.createConicGradient(startAngle, position.x, position.y)
 
   addStops(gradient, stopParts)
@@ -1758,6 +2235,7 @@ function createConicGradient(
  * 把规范化色标写入 CanvasGradient。
  */
 function addStops(gradient: CanvasGradient, values: string[]) {
+  // 色标先补齐省略的位置，再写入原生渐变对象。
   const stops = normalizeStops(values.map(parseColorStop))
 
   if (stops.length < 2) {
@@ -1771,13 +2249,16 @@ function addStops(gradient: CanvasGradient, values: string[]) {
  * 解析单个渐变颜色及可选百分比位置。
  */
 function parseColorStop(value: string): ColorStop {
+  // 去除外围空白后再定位颜色与位置之间的分隔点。
   const trimmed = value.trim()
+  // 仅最外层最后一个空白可能分隔百分比位置。
   const splitIndex = findLastTopLevelWhitespace(trimmed)
 
   if (splitIndex < 0) {
     return { color: trimmed }
   }
 
+  // 末尾片段只有匹配百分比格式时才作为色标位置。
   const possibleOffset = trimmed.slice(splitIndex).trim()
 
   if (!/^-?[\d.]+%$/.test(possibleOffset)) {
@@ -1798,10 +2279,12 @@ function normalizeStops(stops: ColorStop[]): ColorStop[] {
     return []
   }
 
+  // 复制色标避免规范化过程修改调用方数组。
   const normalized = stops.map((stop) => ({ ...stop }))
   normalized[0].offset ??= 0
   normalized[normalized.length - 1].offset ??= 1
 
+  // 最近一个已知位置的色标作为后续插值锚点。
   let anchorIndex = 0
 
   for (let index = 1; index < normalized.length; index += 1) {
@@ -1809,8 +2292,11 @@ function normalizeStops(stops: ColorStop[]): ColorStop[] {
       continue
     }
 
+    // 当前插值区间的起始位置。
     const anchorOffset = normalized[anchorIndex].offset ?? 0
+    // 当前插值区间的结束位置不得回退到前一个色标之前。
     const targetOffset = Math.max(anchorOffset, normalized[index].offset ?? anchorOffset)
+    // 两个已知位置之间需要均匀分配的索引跨度。
     const gap = index - anchorIndex
 
     for (let fillIndex = anchorIndex + 1; fillIndex < index; fillIndex += 1) {
@@ -1829,17 +2315,20 @@ function normalizeStops(stops: ColorStop[]): ColorStop[] {
  * 把 CSS 线性渐变方向转换为弧度。
  */
 function parseLinearAngle(value: string): number {
+  // 方向关键字和角度值统一转换为小写形式。
   const normalized = value.trim().toLowerCase()
 
   if (!normalized.startsWith('to ')) {
     return parseAngle(normalized)
   }
 
+  // 水平方向分量由 left 或 right 关键字决定。
   const horizontal = normalized.includes('right')
     ? 1
     : normalized.includes('left')
       ? -1
       : 0
+  // 垂直方向分量由 top 或 bottom 关键字决定。
   const vertical = normalized.includes('bottom')
     ? 1
     : normalized.includes('top')
@@ -1853,13 +2342,16 @@ function parseLinearAngle(value: string): number {
  * 解析 deg、rad 或 turn 表示的角度。
  */
 function parseAngle(value: string): number {
+  // 支持 CSS 常用的 deg、rad 和 turn 三种单位。
   const match = value.trim().match(/^(-?[\d.]+)(deg|rad|turn)?$/i)
 
   if (!match) {
     throw new Error('Unsupported gradient angle: ' + value)
   }
 
+  // 数值部分保留正负方向。
   const amount = Number.parseFloat(match[1])
+  // 未声明单位时按 CSS 角度常用的度数处理。
   const unit = match[2]?.toLowerCase() ?? 'deg'
 
   if (unit === 'rad') {
@@ -1877,12 +2369,14 @@ function parseAngle(value: string): number {
  * 解析渐变定义中的 at 位置。
  */
 function parsePosition(definition: string, width: number, height: number) {
+  // 最后一个 at 子句用于提取渐变中心位置。
   const atIndex = definition.toLowerCase().lastIndexOf(' at ')
 
   if (atIndex < 0) {
     return { x: width / 2, y: height / 2 }
   }
 
+  // 位置最多使用横向和纵向两个 CSS 标记。
   const tokens = definition.slice(atIndex + 4).trim().split(/\s+/)
 
   return {
@@ -1895,6 +2389,7 @@ function parsePosition(definition: string, width: number, height: number) {
  * 把位置关键字、百分比或像素值转换为坐标。
  */
 function parsePositionToken(value: string, size: number): number {
+  // 位置关键字统一使用小写比较。
   const normalized = value.toLowerCase()
 
   if (normalized === 'center') {
@@ -1924,19 +2419,24 @@ function parsePositionToken(value: string, size: number): number {
  * 尝试使用 Canvas 校验并读取 CSS 纯色。
  */
 function tryParseCssColor(value: string): RgbaColor | undefined {
+  // 单像素 Canvas 用作浏览器原生 CSS 颜色解析器。
   const canvas = document.createElement('canvas')
   canvas.width = 1
   canvas.height = 1
 
+  // 读取最终 RGBA 通道需要频繁读取上下文。
   const context = getContext(canvas, true)
+  // 去除输入外围空白，保持两次校验结果稳定。
   const normalized = value.trim()
 
   context.fillStyle = '#010203'
   context.fillStyle = normalized
+  // 第一基准色用于检测浏览器是否拒绝了输入值。
   const firstAttempt = context.fillStyle
 
   context.fillStyle = '#040506'
   context.fillStyle = normalized
+  // 第二基准色排除输入值恰好等于第一基准色的情况。
   const secondAttempt = context.fillStyle
 
   if (firstAttempt === '#010203' && secondAttempt === '#040506') {
@@ -1946,6 +2446,7 @@ function tryParseCssColor(value: string): RgbaColor | undefined {
   context.clearRect(0, 0, 1, 1)
   context.fillRect(0, 0, 1, 1)
 
+  // 单像素绘制结果提供规范化后的 RGBA 通道。
   const data = context.getImageData(0, 0, 1, 1).data
 
   return { r: data[0], g: data[1], b: data[2], a: data[3] }
@@ -1969,8 +2470,11 @@ function isGradientDirection(value: string): boolean {
  * 按最外层逗号拆分渐变参数。
  */
 function splitTopLevel(value: string): string[] {
+  // 拆分结果只收集最外层逗号之间的参数片段。
   const parts: string[] = []
+  // 括号深度用于忽略颜色函数内部的逗号。
   let depth = 0
+  // 当前参数片段在原字符串中的起始位置。
   let start = 0
 
   for (let index = 0; index < value.length; index += 1) {
@@ -1994,6 +2498,7 @@ function splitTopLevel(value: string): string[] {
  * 查找颜色字符串最后一个最外层空白。
  */
 function findLastTopLevelWhitespace(value: string): number {
+  // 反向扫描时使用括号深度忽略颜色函数内部空白。
   let depth = 0
 
   for (let index = value.length - 1; index >= 0; index -= 1) {

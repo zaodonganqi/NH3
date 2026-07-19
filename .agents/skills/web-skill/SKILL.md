@@ -170,9 +170,18 @@ Small features should not be split into too many functions. Function definitions
 
 ## Comment Standards
 
-Choose the language for new comments from the current author's established usage in the target project, file, or module. If the current author consistently writes Chinese comments, use concise Chinese. If the current author consistently writes English comments, use concise English. If the surrounding code is mixed, match the nearest stable convention and avoid mixing languages inside one comment.
+Comments are mandatory for functions, variables, and utility-file headers. Comments elsewhere are optional and should be added only when they clarify purpose, business meaning, constraints, or non-obvious behavior.
 
-### File Header Example
+Mandatory requirements:
+
+1. Add a clear comment to every new or modified function or method, including composables, lifecycle callbacks, event handlers, and utility functions. Explain its purpose and, when relevant, inputs, outputs, side effects, constraints, or important behavior.
+2. Add an adjacent comment to every new or modified variable or constant, including reactive state, refs, computed values, store fields, and module-level constants. Explain what the value represents or why it exists.
+3. Add a file header comment to every new or modified utility class or utility/helper file, including files under `utils`, shared helper modules, and tooling scripts. State the file's responsibility and boundary.
+4. Comments for imports, types, template regions, control-flow branches, styles, configuration entries, and tests are optional unless needed to explain non-obvious behavior.
+
+Choose the language for every new or updated comment from the current author's established usage in the target project, file, or module. This language-selection requirement is mandatory and must never be skipped. If the current author consistently writes Chinese comments, use concise Chinese. If the current author consistently writes English comments, use concise English. If the surrounding code is mixed, match the nearest stable convention and avoid mixing languages inside one comment.
+
+### Utility File Header Example
 
 ```ts
 /**
@@ -193,6 +202,13 @@ Choose the language for new comments from the current author's established usage
 export function resolveActiveMenuKey(pathname: string): string { ... }
 ```
 
+### Variable Comment Example
+
+```ts
+// Stable menu key used when the current route has no explicit navigation mapping.
+const fallbackMenuKey = 'overview'
+```
+
 ### Multi-line Comment Format
 
 `/** */` style multi-line comments must span at least three lines. Never compress them into a single line.
@@ -211,11 +227,12 @@ export function resolveActiveMenuKey(pathname: string): string { ... }
 
 | Ban | Reason |
 |---|---|
-| Translating each line | Adds noise |
+| Missing comments on new or modified functions, variables, or utility-file headers | These comment locations are mandatory |
+| Comments that only restate syntax | They do not explain purpose, meaning, constraints, or behavior |
 | Decorative separator blocks | Reduces scan efficiency |
 | Mixing languages inside one prose comment | Makes collaboration and maintenance inconsistent |
 | Comments explaining unfinished UI | The UI should be finished, disabled, or removed |
-| Stale comments | More dangerous than no comment |
+| Stale comments | Update or remove them; mandatory comments must be replaced with current explanations |
 
 TODO/FIXME/HACK must include scope and next action:
 
@@ -429,6 +446,7 @@ Before declaring completion:
 - No specific business, person, organization, role, or internal data is included in generic examples.
 - `var` is not used; examples follow ES6+.
 - Small features are not split into bloated function layers.
+- Every new or modified function and variable has a current comment, every new or modified utility file has a file header, and comment language matches the current author's established usage.
 - Environment variables do not expose secrets.
 - No build or runtime validation was executed unless explicitly requested.
 - Static checks and unverified scope are stated.

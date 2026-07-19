@@ -1,1 +1,0 @@
-{"root":["./src/env.d.ts","./src/main.ts","./src/api/index.ts","./src/components/index.ts","./src/composables/index.ts","./src/config/index.ts","./src/directives/index.ts","./src/layouts/index.ts","./src/plugins/index.ts","./src/router/index.ts","./src/stores/index.ts","./src/utils/index.ts","./src/app.vue"],"version":"6.0.3"}
