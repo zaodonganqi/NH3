@@ -1,10 +1,6 @@
 <template>
   <section id="home" class="hero" aria-labelledby="hero-title">
-    <SiteHeader
-      @navigate="emit('navigate', $event)"
-      @hover="emit('hover', $event)"
-      @leave="emit('leave', $event)"
-    />
+    <HomeThreeBackground />
 
     <div class="hero-copy intro-piece">
       <p class="hero-copy__eyebrow">CREATIVE DEVELOPER / 2026</p>
@@ -17,7 +13,7 @@
         />
       </h1>
       <p class="hero-copy__line"><span aria-hidden="true">♥</span> 用代码探索无限可能</p>
-      <a class="pixel-link" href="#projects" @click="emit('navigate', $event)">探索更多</a>
+      <a class="pixel-link" href="#project" @click="emit('navigate', $event)">探索更多</a>
     </div>
 
     <PixelMolecule class="intro-piece" />
@@ -38,56 +34,39 @@
       <i v-for="edge in terminalEdges" :key="edge" class="terminal__edge" :class="edge"></i>
       <span>&gt;_</span>
       <strong>&gt; Hello, World!</strong>
-      <PixelArt :pattern="patterns.smile" :palette="palettes.hydrogen" />
+      <PixelPattern :pattern="patterns.smile" :palette="palettes.hydrogen" />
     </div>
 
-    <PixelArt class="hero-cursor intro-piece" :pattern="patterns.cursor" :palette="palettes.ink" />
+    <PixelPattern class="hero-cursor intro-piece" :pattern="patterns.cursor" :palette="palettes.ink" />
 
     <div class="scroll-cue intro-piece" aria-hidden="true">
       <span>SCROLL DOWN</span>
-      <PixelArt :pattern="patterns.chevron" :palette="palettes.primary" />
+      <PixelPattern :pattern="patterns.chevron" :palette="palettes.primary" />
     </div>
-
-    <div class="equalizer intro-piece" aria-hidden="true">
-      <span v-for="(height, index) in equalizer" :key="index">
-        <i v-for="block in height" :key="block"></i>
-      </span>
-    </div>
-
-    <i
-      v-for="(dot, index) in decorativePixels"
-      :key="index"
-      class="decor-pixel"
-      :class="`decor-pixel--${dot.color}`"
-      :style="{ left: `${dot.x}%`, top: `${dot.y}%`, '--pixel-size': `${dot.size}px` }"
-      aria-hidden="true"
-    ></i>
-
-    <i
-      v-for="(point, index) in circuitPoints"
-      :key="`circuit-${index}`"
-      class="circuit-pixel"
-      :style="{ left: `${point.x}%`, top: `${point.y}%` }"
-      aria-hidden="true"
-    ></i>
   </section>
 </template>
 
 <script setup lang="ts">
-import { circuitPoints, decorativePixels, equalizer, palettes, patterns } from '../../config/site'
-import PixelArt from '../pixel/PixelArt.vue'
-import PixelText from '../pixel/PixelText.vue'
+import { defineAsyncComponent } from 'vue'
+import { palettes, patterns } from '../../../config/site'
+import { PixelPattern, PixelText } from '../../base/pixel'
 import PixelMolecule from './PixelMolecule.vue'
-import SiteHeader from './SiteHeader.vue'
 
+/**
+ * 异步加载首屏 Three.js 背景，避免它阻塞主要内容脚本解析。
+ */
+function loadHomeThreeBackground() {
+  return import('./HomeThreeBackground.vue')
+}
+
+// Three.js 背景使用独立异步代码块，首屏真实内容可以先完成初始化。
+const HomeThreeBackground = defineAsyncComponent(loadHomeThreeBackground)
 // 终端装饰框的四条像素虚线边。
 const terminalEdges = ['terminal__edge--top', 'terminal__edge--right', 'terminal__edge--bottom', 'terminal__edge--left']
 
-// 首屏把导航和悬停事件交给应用级 GSAP 控制器。
+// 首屏只把主行动链接交给首页页面级滚动控制器。
 const emit = defineEmits<{
   navigate: [event: MouseEvent]
-  hover: [event: MouseEvent]
-  leave: [event: MouseEvent]
 }>()
 </script>
 
@@ -177,7 +156,7 @@ const emit = defineEmits<{
 }
 
 .terminal strong { color: #4fcdbf; font-weight: 700; }
-.terminal :deep(.pixel-art) { position: absolute; right: 24px; bottom: 18px; width: 28px; }
+.terminal :deep(.pixel-pattern) { position: absolute; right: 24px; bottom: 18px; width: 28px; }
 
 .terminal__edge {
   position: absolute;
@@ -208,38 +187,7 @@ const emit = defineEmits<{
   font-weight: 800;
 }
 
-.scroll-cue :deep(.pixel-art) { width: 42px; }
-
-.equalizer {
-  position: absolute;
-  right: 13%;
-  bottom: 5%;
-  display: flex;
-  height: 76px;
-  align-items: end;
-}
-
-.equalizer span { display: flex; flex-direction: column-reverse; }
-.equalizer i { display: block; width: 8px; height: 8px; background: #78cbed; border: 1px solid #ffffff; }
-.equalizer span:nth-child(3n) i { background: #7f8cf1; }
-.equalizer span:nth-child(4n) i { background: #ef9dcb; }
-
-.decor-pixel,
-.circuit-pixel {
-  position: absolute;
-  z-index: 1;
-  display: block;
-  aspect-ratio: 1 / 1;
-  background: currentColor;
-  border: 1px solid #ffffff;
-}
-
-.decor-pixel { width: var(--pixel-size); }
-.decor-pixel--cyan { color: #82d1e7; }
-.decor-pixel--pink { color: #f29dcc; }
-.decor-pixel--blue { color: #7794ee; }
-.decor-pixel--purple { color: #c49ae9; }
-.circuit-pixel { width: 5px; color: #a3dff0; }
+.scroll-cue :deep(.pixel-pattern) { width: 42px; }
 
 @media (max-width: 1100px) {
   .hero-copy { top: 31%; left: 6%; }
@@ -254,7 +202,7 @@ const emit = defineEmits<{
   .hero-copy__line { margin: 18px 0 30px; }
   .code-note { top: 720px; right: 5%; }
   .terminal { bottom: 4%; left: 5%; min-height: 108px; }
-  .scroll-cue, .hero-cursor, .equalizer { display: none; }
+  .scroll-cue, .hero-cursor { display: none; }
 }
 
 @media (max-width: 560px) {
@@ -264,6 +212,6 @@ const emit = defineEmits<{
   .hero-copy__line { font-size: 13px; }
   .code-note { display: none; }
   .terminal { bottom: 4%; left: 8%; width: 62%; min-height: 94px; padding: 16px; gap: 12px; font-size: 10px; }
-  .terminal :deep(.pixel-art) { width: 22px; }
+  .terminal :deep(.pixel-pattern) { width: 22px; }
 }
 </style>

@@ -7,7 +7,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { readPixelTextLayout, renderPixelText } from '../../utils'
+import { readPixelTextLayout, renderPixelText } from '../../../utils'
 
 // 组件参数与文本工具保持一致，布局宽度仍由外部容器控制。
 const props = withDefaults(defineProps<{
@@ -114,10 +114,10 @@ async function generateText() {
 
   // 浏览器计算样式是组件唯一的文字视觉配置来源。
   const style = window.getComputedStyle(root)
-  // JS 字号优先，未传时回退到组件继承的普通 CSS 字号。
+  // JS 字号优先，未传时使用真实 CSS 字号，异常值才回退浏览器常规 16px。
   const fontSize = Math.max(
     1,
-    props.fontSize ?? (Number.parseFloat(style.fontSize) || 92),
+    props.fontSize ?? (Number.parseFloat(style.fontSize) || 16),
   )
   // normal 行高回退到常规文本使用的 1.2 倍字号。
   const lineHeight = props.lineHeight ?? (
@@ -133,7 +133,7 @@ async function generateText() {
   )
   // 颜色和渐变由 JS color 参数配置，未传时使用继承的普通 CSS 颜色。
   const paint = props.color ?? style.color
-  // 密度是唯一控制颗粒数量的参数，具体校验由文本工具统一负责。
+  // density 是每 em 的颗粒数量上限，小字号会由工具自动降低实际密度。
   const density = props.density
   // Canvas API 只支持工具声明的三种文本对齐值。
   const textAlign = props.textAlign ?? (

@@ -11,10 +11,12 @@
   "dependencies": {
     "gsap": "^3.15.0",
     "markdown-it": "^14.1.0",
+    "three": "^0.185.1",
     "vue": "^3.5.13"
   },
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",
+    "@types/three": "^0.185.1",
     "@vitejs/plugin-vue": "^6.0.6",
     "typescript": "^6.0.3",
     "vite": "^8.0.12",

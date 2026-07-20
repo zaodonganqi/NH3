@@ -96,26 +96,33 @@ const DEFAULT_PIXEL_STYLE: PixelGridOptions = {
   },
 }
 
+// 普通文本在没有 JS 或 CSS 字号时沿用浏览器常规字号。
+const DEFAULT_TEXT_FONT_SIZE = 16
+// density 表示每 em 允许使用的最大逻辑格数，而不是小字号下的固定格数。
+const DEFAULT_TEXT_DENSITY = 16
+// 文本来源格至少保持 3px，使小字号获得大于共享白线的稳定彩色方块。
+const MIN_TEXT_SOURCE_PIXEL_SIZE = 3
+// 文本掩码固定使用已验证的常规字重，避免输出缩放被误解为字形粗细。
+const TEXT_MASK_FONT_WEIGHT = 400
+
 /**
  * 普通文本在零配置调用时使用的统一字体和像素样式。
  */
 const DEFAULT_TEXT_OPTIONS: ResolvedTextOptions = {
   ...DEFAULT_PIXEL_STYLE,
+  padding: 0,
   pixelBorder: {
     width: 0.5,
     color: '#ffffff',
   },
   coverageThreshold: 0.16,
   fontFamily: 'SimSun, "Songti SC", serif',
-  fontSize: 92,
-  letterSpacing: -2,
+  fontSize: DEFAULT_TEXT_FONT_SIZE,
+  letterSpacing: 0,
   textAlign: 'center',
   color: '#617cf4',
-  density: 16,
+  density: DEFAULT_TEXT_DENSITY,
 }
-
-// 文本掩码固定使用已验证的常规字重，避免输出缩放被误解为字形粗细。
-const TEXT_MASK_FONT_WEIGHT = 400
 
 /**
  * 图片在零配置调用时使用的统一来源颜色和背景识别方式。
@@ -452,13 +459,18 @@ export class PixelArtGenerator {
       ...this.defaults,
       ...options,
     }
-    // 密度必须是有限正数，避免派生出无效采样格。
-    const density = merged.density ?? 16
+    // 最终来源字号来自显式参数或统一的浏览器常规字号。
+    const fontSize = merged.fontSize ?? DEFAULT_TEXT_FONT_SIZE
+    assertPositiveNumber(fontSize, 'fontSize')
+    // 密度是每 em 的逻辑格数上限，小字号会自动降低实际密度。
+    const density = merged.density ?? DEFAULT_TEXT_DENSITY
     assertPositiveNumber(density, 'density')
-    // CSS 字号和密度共同推导来源采样格，不向调用方暴露方块边长。
+    // 请求的来源格尺寸向上取整，确保实际密度不会超过配置上限。
+    const requestedSourcePixelSize = Math.ceil(fontSize / density)
+    // 统一最小颗粒避免小字号被拆成过多 1px 来源格。
     const sourcePixelSize = Math.max(
-      1,
-      Math.round((merged.fontSize ?? 92) / density),
+      MIN_TEXT_SOURCE_PIXEL_SIZE,
+      requestedSourcePixelSize,
     )
     // 统一校验采样参数并提取后续渲染样式。
     const resolved = resolveGridOptions(
@@ -1010,7 +1022,7 @@ async function rasterizeText(
   const canvas = await createTextCanvas(text, options)
   throwIfAborted(options.signal)
 
-  // 固定网格直接采样，自动网格则根据字号提高最低采样精度。
+  // 固定网格直接采样，自动网格则按同一密度上限提高最低来源格尺寸。
   const rasterOptions =
     options.pixelSize === 'auto'
       ? {
@@ -1018,7 +1030,13 @@ async function rasterizeText(
           minPixelSize: Math.max(
             options.minPixelSize,
             clamp(
-              Math.round((options.fontSize ?? 96) / 16),
+              Math.max(
+                MIN_TEXT_SOURCE_PIXEL_SIZE,
+                Math.ceil(
+                  (options.fontSize ?? DEFAULT_TEXT_FONT_SIZE) /
+                    DEFAULT_TEXT_DENSITY,
+                ),
+              ),
               options.minPixelSize,
               options.maxPixelSize,
             ),
@@ -1060,8 +1078,8 @@ async function createTextCanvas(
   text: string,
   options: TextRasterOptions,
 ): Promise<HTMLCanvasElement> {
-  // 来源字号决定浏览器字体测量精度，不直接限制最终 Canvas 区域。
-  const fontSize = options.fontSize ?? 64
+  // 来源字号与普通文本字号一致，不再使用独立的大字号采样默认值。
+  const fontSize = options.fontSize ?? DEFAULT_TEXT_FONT_SIZE
   // 多行基线间距默认沿用常见的 1.2 倍字号比例。
   const lineHeight = options.lineHeight ?? fontSize * 1.2
   // 额外字距按 CSS 像素参与每行宽度测量。

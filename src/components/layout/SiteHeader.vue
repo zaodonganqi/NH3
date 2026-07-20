@@ -1,10 +1,11 @@
 <template>
   <header class="site-header intro-piece">
-    <a class="brand" href="#home" aria-label="NH3 首页" @click="emit('navigate', $event)">
+    <a class="brand" href="#home" aria-label="NH3 首页" @click="handleBrandClick">
       <PixelText
         class="brand__name"
         text="NH3"
-        :density="14"
+        :font-size="30"
+        :letter-spacing="3"
         color="linear-gradient(90deg, #294cc8 0%, #159e9a 100%)"
       />
       <span class="brand__spark" aria-hidden="true">
@@ -18,13 +19,22 @@
         v-for="item in navItems"
         :key="item.id"
         class="nav__item"
-        :class="{ 'nav__item--active': item.id === 'home' }"
-        :href="`#${item.id}`"
-        @click="emit('navigate', $event)"
-        @mouseenter="emit('hover', $event)"
-        @mouseleave="emit('leave', $event)"
+        :class="{
+          'nav__item--active': !item.external && item.id === props.activeSection,
+          'nav__item--external': item.external,
+        }"
+        :href="item.href"
+        :target="item.external ? '_blank' : undefined"
+        :rel="item.external ? 'noreferrer' : undefined"
+        :aria-label="item.external ? '打开 GitHub' : undefined"
+        @click="handleNavigationClick($event, item)"
       >
-        <PixelArt :pattern="item.icon" :palette="palettes.primary" />
+        <span class="nav__icon" aria-hidden="true">
+          <PixelPattern
+            :pattern="item.icon"
+            :palette="item.external ? palettes.ink : palettes.primary"
+          />
+        </span>
         <span>{{ item.label }}</span>
       </a>
     </nav>
@@ -32,16 +42,37 @@
 </template>
 
 <script setup lang="ts">
+import type { NavItem } from '../../config/site'
 import { navItems, palettes } from '../../config/site'
-import PixelArt from '../pixel/PixelArt.vue'
-import PixelText from '../pixel/PixelText.vue'
+import { PixelPattern, PixelText } from '../base/pixel'
 
-// 站点头部把导航和悬停事件交给应用级 GSAP 控制器。
+// 当前章节用于同步顶部导航的选中状态。
+const props = withDefaults(defineProps<{
+  activeSection?: string
+}>(), {
+  activeSection: 'home',
+})
+
+// Header 只把站内锚点点击交给页面处理，外部链接保留浏览器默认行为。
 const emit = defineEmits<{
-  navigate: [event: MouseEvent]
-  hover: [event: MouseEvent]
-  leave: [event: MouseEvent]
+  navigate: [event: MouseEvent, sectionId: string]
 }>()
+
+/**
+ * 把左侧品牌点击作为 HOME 导航交给页面平滑滚动。
+ */
+function handleBrandClick(event: MouseEvent) {
+  emit('navigate', event, 'home')
+}
+
+/**
+ * 站内导航交给首页滚动控制器，GitHub 直接打开外部地址。
+ */
+function handleNavigationClick(event: MouseEvent, item: NavItem) {
+  if (!item.external) {
+    emit('navigate', event, item.id)
+  }
+}
 </script>
 
 <style scoped>
@@ -105,26 +136,40 @@ const emit = defineEmits<{
 
 .nav {
   display: flex;
-  gap: clamp(28px, 4vw, 68px);
+  gap: clamp(20px, 2.7vw, 48px);
   padding-top: 7px;
 }
 
 .nav__item {
   position: relative;
   display: grid;
-  width: 62px;
+  width: 66px;
   justify-items: center;
   gap: 9px;
   color: #6b7d9d;
   text-decoration: none;
+  transition: color 180ms ease, transform 180ms ease;
 }
 
-.nav__item :deep(.pixel-art) {
-  width: 36px;
+.nav__item:hover,
+.nav__item:focus-visible {
+  color: #526ee5;
+  transform: translateY(-3px);
 }
 
-.nav__item span:last-child {
-  font-size: 12px;
+.nav__icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+}
+
+.nav__icon :deep(.pixel-pattern) {
+  width: 30px;
+}
+
+.nav__item > span:last-child {
+  font-size: 11px;
   font-weight: 800;
 }
 
@@ -135,16 +180,21 @@ const emit = defineEmits<{
 .nav__item--active::after {
   position: absolute;
   bottom: -13px;
-  left: 6px;
+  left: 8px;
   width: 50px;
   height: 4px;
   content: "";
   background: repeating-linear-gradient(90deg, #67a1ee 0 4px, transparent 4px 8px);
 }
 
+.nav__item--external {
+  color: #2d3f5b;
+}
+
+
 @media (max-width: 1100px) {
   .site-header { top: 28px; left: 28px; width: calc(100% - 56px); }
-  .nav { gap: 22px; }
+  .nav { gap: 14px; }
   .brand__name { width: 158px; font-size: 46px; }
 }
 
@@ -160,20 +210,16 @@ const emit = defineEmits<{
   }
 
   .brand { width: 158px; }
-  .nav { width: 100%; gap: 8px; justify-content: space-between; }
-  .nav__item { width: 54px; }
-  .nav__item span:last-child { font-size: 9px; }
-  .nav__item :deep(.pixel-art) { width: 28px; }
-  .nav__item--active::after { left: 9px; width: 36px; }
+  .nav { width: 100%; gap: 4px; justify-content: space-between; }
+  .nav__item { width: 48px; }
+  .nav__item > span:last-child { font-size: 8px; }
+  .nav__icon :deep(.pixel-pattern) { width: 24px; }
+  .nav__item--active::after { left: 6px; width: 36px; }
 }
 
-@media (max-width: 560px) {
-  .site-header { padding: 20px 16px; }
-  .brand { width: 140px; }
-  .brand__name { width: 140px; font-size: 40px; }
-  .brand__meta { margin-top: 10px; font-size: 10px; }
-  .nav { gap: 2px; }
-  .nav__item { width: 50px; gap: 6px; }
-  .nav__item span:last-child { font-size: 8px; }
+@media (prefers-reduced-motion: reduce) {
+  .nav__item {
+    transition: none;
+  }
 }
 </style>

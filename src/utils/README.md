@@ -1,6 +1,6 @@
 # 像素画工具
 
-文本工具使用固定的 400 字重，并根据 `fontSize / density` 推导来源网格。常规调用不需要接触方块尺寸、采样阈值或 DPR 参数。
+文本工具使用固定的 400 字重，并根据真实 `fontSize` 和密度上限推导来源网格。常规调用不需要接触方块尺寸、采样阈值或 DPR 参数。
 
 ## 基础用法
 
@@ -32,17 +32,17 @@ Canvas 的最终区域由外部 CSS 决定，工具会按当前 DPR 使用整数
 ```ts
 const art = await pixelateText('PIXEL TYPE', {
   fontFamily: 'SimSun, serif',
-  fontSize: 92,
+  fontSize: 20,
   fontStyle: 'normal',
-  letterSpacing: -2,
-  lineHeight: 108,
+  letterSpacing: 0,
+  lineHeight: 24,
   textAlign: 'center',
   color: '#617cf4',
   density: 16,
 })
 ```
 
-`fontSize` 表示与普通文字一致的最终字号，`density` 表示每个 em 沿单轴采样的逻辑格数量。密度越高，方块越小且数量越多；密度越低，方块越大且数量越少。方块尺寸由这两个参数推导，不作为公开配置。
+`fontSize` 表示与普通文字一致的真实字号。`density` 是每个 em 沿单轴允许使用的最大逻辑格数，不是固定格数；来源格默认不会小于 `3px`，因此小字号会自动降低实际密度，保持清晰的像素颗粒。方块尺寸由这两个参数推导，不作为公开配置。
 
 Canvas 空间不足时只会按比例缩小以避免溢出，不会改变文字掩码。
 
@@ -70,7 +70,7 @@ art.render(canvas)
 
 ## 固定视觉规则
 
-- 文本网格由 `fontSize / density` 推导，覆盖率阈值固定为 `0.16`。
+- 文本网格由真实字号和密度上限推导，来源格默认至少为 `3px`，覆盖率阈值固定为 `0.16`。
 - 每个彩色像素块都是正方形。
 - 文本内部白线默认使用 `0.5px` 逻辑宽度，只绘制在相邻前景方块之间，不绘制字符外轮廓。
 - 白线按 DPR 量化为完整物理像素；DPR 1 下最细只能稳定显示为 1 个物理像素。

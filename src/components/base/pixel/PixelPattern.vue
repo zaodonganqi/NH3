@@ -1,5 +1,5 @@
 <template>
-  <span class="pixel-art" :style="{ '--columns': pattern[0]?.length ?? 1 }" aria-hidden="true">
+  <span class="pixel-pattern" :style="{ '--columns': pattern[0]?.length ?? 1 }" aria-hidden="true">
     <template v-for="(row, rowIndex) in pattern" :key="rowIndex">
       <i
         v-for="(cell, columnIndex) in [...row]"
@@ -12,8 +12,9 @@
 </template>
 
 <script setup lang="ts">
-import type { PixelPalette } from '../../config/site'
+import type { PixelPalette } from '../../../types'
 
+// 字符图案和调色板共同决定每个方格是否填充及其颜色。
 defineProps<{
   pattern: string[]
   palette: PixelPalette
@@ -21,7 +22,7 @@ defineProps<{
 </script>
 
 <style scoped>
-.pixel-art {
+.pixel-pattern {
   display: grid;
   width: 100%;
   grid-template-columns: repeat(var(--columns), minmax(0, 1fr));

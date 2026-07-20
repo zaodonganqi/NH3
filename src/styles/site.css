@@ -73,9 +73,6 @@ a, button { color: inherit; font: inherit; }
   width: 100%;
 }
 
-.content-section--contact {
-  grid-template-columns: 100%;
-}
 
 .section-kicker { margin: 0 0 20px; color: #95a5c7; font-size: 12px; font-weight: 800; }
 .section-heading { margin-bottom: 70px; }
