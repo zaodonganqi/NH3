@@ -30,9 +30,11 @@
         @click="handleNavigationClick($event, item)"
       >
         <span class="nav__icon" aria-hidden="true">
-          <PixelPattern
-            :pattern="item.icon"
-            :palette="item.external ? palettes.ink : palettes.primary"
+          <PixelImage
+            :source="item.icon"
+            :label="item.label"
+            color="linear-gradient(135deg, #294cc8 0%, #159e9a 100%)"
+            :options="navPixelOptions"
           />
         </span>
         <span>{{ item.label }}</span>
@@ -43,8 +45,22 @@
 
 <script setup lang="ts">
 import type { NavItem } from '../../config/site'
-import { navItems, palettes } from '../../config/site'
-import { PixelPattern, PixelText } from '../base/pixel'
+import { navItems } from '../../config/site'
+import type { PixelImageOptions } from '../../utils'
+import { PixelImage, PixelText } from '../base/pixel'
+
+// 导航 SVG 统一采用粗颗粒采样和 1px 白线，避免不同来源图标出现清晰度跳变。
+const navPixelOptions: PixelImageOptions = {
+  pixelSize: 5,
+  coverageThreshold: 0.12,
+  alphaThreshold: 0.1,
+  padding: 0,
+  trim: true,
+  pixelBorder: {
+    width: 1,
+    color: '#ffffff',
+  },
+}
 
 // 当前章节用于同步顶部导航的选中状态。
 const props = withDefaults(defineProps<{
@@ -159,13 +175,14 @@ function handleNavigationClick(event: MouseEvent, item: NavItem) {
 
 .nav__icon {
   display: grid;
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   place-items: center;
 }
 
-.nav__icon :deep(.pixel-pattern) {
-  width: 30px;
+.nav__icon :deep(.pixel-image) {
+  width: 40px;
+  height: 40px;
 }
 
 .nav__item > span:last-child {
@@ -213,7 +230,6 @@ function handleNavigationClick(event: MouseEvent, item: NavItem) {
   .nav { width: 100%; gap: 4px; justify-content: space-between; }
   .nav__item { width: 48px; }
   .nav__item > span:last-child { font-size: 8px; }
-  .nav__icon :deep(.pixel-pattern) { width: 24px; }
   .nav__item--active::after { left: 6px; width: 36px; }
 }
 

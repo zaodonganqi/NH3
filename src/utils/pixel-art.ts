@@ -691,7 +691,7 @@ function resolveCanvasRenderLayout(
   const cssWidth = canvas.isConnected ? canvas.clientWidth : 0
   // 高度与宽度独立读取，避免仅按宽度缩放后越过外部区域。
   const cssHeight = canvas.isConnected ? canvas.clientHeight : 0
-  // 物理像素倍率保证浏览器缩放后方块和内部边线仍落在整数坐标上。
+  // 使用真实 DPR 让 Canvas 位图与屏幕物理像素一一对应，避免缩放阶段合并相邻色块。
   const pixelRatio =
     typeof window === 'undefined' ? 1 : Math.max(0.5, window.devicePixelRatio || 1)
   // 逻辑单格步长由彩色块和可为小数的 CSS 内线共同组成。

@@ -1,10 +1,16 @@
+import aboutIconUrl from '../assets/icons/navigation/about.svg?url'
+import blogIconUrl from '../assets/icons/navigation/blog.svg?url'
+import homeIconUrl from '../assets/icons/navigation/home.svg?url'
+import projectIconUrl from '../assets/icons/navigation/project.svg?url'
+import toolIconUrl from '../assets/icons/navigation/tool.svg?url'
+import githubIconUrl from '../assets/img/github.svg?url'
 import type { PixelPalette } from '../types'
 
 export interface NavItem {
   id: string
   label: string
   href: string
-  icon: string[]
+  icon: string
   external?: boolean
 }
 
@@ -28,48 +34,38 @@ export const navItems: NavItem[] = [
     id: 'home',
     label: 'HOME',
     href: '#home',
-    icon: ['..1..', '.111.', '1.1.1', '..1..', '.111.'],
+    icon: homeIconUrl,
   },
   {
     id: 'project',
     label: 'PROJECT',
     href: '#project',
-    icon: ['1...1', '.1.1.', '..1..', '.1.1.', '1...1'],
+    icon: projectIconUrl,
   },
   {
     id: 'tool',
     label: 'TOOL',
     href: '#tool',
-    icon: ['11...', '.11..', '..111', '..1..', '.1...', '1....'],
+    icon: toolIconUrl,
   },
   {
     id: 'blog',
     label: 'BLOG',
     href: '#blog',
-    icon: ['11111', '1...1', '11111', '1...1', '11111'],
+    icon: blogIconUrl,
   },
   {
     id: 'about',
     label: 'ABOUT',
     href: '#about',
-    icon: ['..1..', '.111.', '..1..', '.111.', '11111'],
+    icon: aboutIconUrl,
   },
   {
     id: 'github',
     label: 'GITHUB',
     href: githubUrl,
+    icon: githubIconUrl,
     external: true,
-    icon: [
-      '..11111..',
-      '.1111111.',
-      '111111111',
-      '111111111',
-      '111111111',
-      '.1111111.',
-      '..11.11..',
-      '.11...11.',
-      '11.....11',
-    ],
   },
 ]
 
