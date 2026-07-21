@@ -16,7 +16,7 @@
       <a class="pixel-link" href="#project" @click="emit('navigate', $event)">探索更多</a>
     </div>
 
-    <PixelMolecule class="intro-piece" />
+    <PixelMolecule />
 
     <div class="code-note intro-piece" aria-label="代码简介">
       <span class="code-note__brace">{</span>
@@ -40,8 +40,10 @@
     <PixelPattern class="hero-cursor intro-piece" :pattern="patterns.cursor" :palette="palettes.ink" />
 
     <div class="scroll-cue intro-piece" aria-hidden="true">
-      <span>SCROLL DOWN</span>
-      <PixelPattern :pattern="patterns.chevron" :palette="palettes.primary" />
+      <div class="scroll-cue__motion">
+        <span>SCROLL DOWN</span>
+        <PixelPattern :pattern="patterns.chevron" :palette="palettes.primary" />
+      </div>
     </div>
   </section>
 </template>
@@ -79,7 +81,7 @@ const emit = defineEmits<{
   min-height: 100vh;
   overflow: hidden;
   background: #ffffff;
-  isolation: isolate;
+  isolation: auto;
 }
 
 .hero-copy {
@@ -182,12 +184,21 @@ const emit = defineEmits<{
   z-index: 3;
   bottom: 5%;
   left: 47%;
-  display: grid;
-  justify-items: center;
-  gap: 13px;
   color: #6179e9;
   font-size: 12px;
   font-weight: 800;
+}
+
+.scroll-cue__motion {
+  display: grid;
+  justify-items: center;
+  gap: 13px;
+  will-change: transform, opacity;
+}
+
+.scroll-cue__motion--hidden {
+  visibility: hidden;
+  opacity: 0;
 }
 
 .scroll-cue :deep(.pixel-pattern) { width: 42px; }

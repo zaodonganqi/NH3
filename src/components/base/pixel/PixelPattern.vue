@@ -91,19 +91,16 @@ function drawPattern() {
     return
   }
 
-  // 浏览器布局矩形保留响应式宽高中的亚像素精度。
-  const bounds = canvas.getBoundingClientRect()
-
-  if (bounds.width <= 0 || bounds.height <= 0) {
+  if (canvas.clientWidth <= 0 || canvas.clientHeight <= 0) {
     return
   }
 
   // 设备像素比限制在 2，兼顾硬边清晰度和纹理内存。
   const pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
-  // Canvas 的 CSS 宽度决定每列逻辑像素的实际尺寸。
-  const width = bounds.width
-  // Canvas 的 CSS 高度由图案宽高比稳定决定。
-  const height = bounds.height
+  // 布局宽度不包含祖先 transform，缩放动画不会降低 Canvas 纹理分辨率。
+  const width = canvas.clientWidth
+  // 布局高度同样忽略 Flip 缩放，反向恢复时无需重新分配纹理。
+  const height = canvas.clientHeight
   // 物理像素宽度只在真实尺寸变化时更新。
   const renderWidth = Math.max(1, Math.round(width * pixelRatio))
   // 物理像素高度只在真实尺寸变化时更新。

@@ -50,6 +50,7 @@ onMounted(async () => {
   // GSAP 上下文统一管理章节判定、入场动画和内部 ScrollTrigger。
   animationContext = gsap.context(() => {
     createSectionScrollTracking()
+    createScrollCueFade()
 
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       return
@@ -132,6 +133,45 @@ function createSectionScrollTracking() {
       onEnterBack: activateSection,
     })
   }
+}
+
+/**
+ * 让 Scroll Down 在离开首屏顶部后随滚动逐渐隐藏。
+ */
+function createScrollCueFade() {
+  // 独立内层避免滚动渐隐覆盖首屏入场写入的根节点 transform。
+  const cue = document.querySelector<HTMLElement>('.scroll-cue__motion')
+  // 首页 section 为渐隐 ScrollTrigger 提供稳定的滚动起点。
+  const hero = document.getElementById('home')
+
+  if (!cue || !hero) {
+    return
+  }
+
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    ScrollTrigger.create({
+      trigger: hero,
+      start: 'bottom 95%',
+      end: 'max',
+      toggleClass: {
+        targets: cue,
+        className: 'scroll-cue__motion--hidden',
+      },
+    })
+    return
+  }
+
+  gsap.to(cue, {
+    autoAlpha: 0,
+    y: 24,
+    ease: 'none',
+    scrollTrigger: {
+      trigger: hero,
+      start: 'top top',
+      end: 'bottom 80%',
+      scrub: 0.25,
+    },
+  })
 }
 
 /**
