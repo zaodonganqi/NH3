@@ -18,12 +18,33 @@ import {
   WebGLRenderer,
 } from 'three'
 
+/**
+ * 描述一个静态 Three.js 像素装饰的图案、视口锚点和空间样式。
+ */
 interface PixelShapeDefinition {
+  /**
+   * 图形中心相对首屏可见宽度的归一化横向位置，0 表示左侧，1 表示右侧。
+   */
   anchorX: number
+  /**
+   * 图形中心相对首屏可见高度的归一化纵向位置，0 表示顶部，1 表示底部。
+   */
   anchorY: number
+  /**
+   * Three.js 材质使用的十六进制数值颜色。
+   */
   color: number
+  /**
+   * 图形相对背景平面的世界坐标深度，用于控制透视层次。
+   */
   depth: number
+  /**
+   * 按行保存的字符矩阵；点号表示不创建立方体的透明格。
+   */
   pattern: string[]
+  /**
+   * 单个实例化立方体在世界坐标中的正方形边长。
+   */
   pixelSize: number
 }
 

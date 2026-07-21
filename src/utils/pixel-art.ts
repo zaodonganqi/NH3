@@ -3,20 +3,31 @@
  *
  * 本模块把浏览器可绘制内容转为硬边正方形网格；调用示例见同目录 README.md。
  */
-/**
- * 描述像素填充、背景或边线使用的 CSS 颜色字符串。
- */
-export type PixelPaint = string
-/**
- * 描述图片前景识别采用的背景来源。
- */
-export type PixelSourceBackground = SourceBackground
 
 /**
- * 配置每个前景像素外部使用的四周边线。
+ * 描述像素填充、背景或边线使用的 CSS 颜色字符串。
+ *
+ * 支持浏览器可解析的纯色，以及工具实现的 linear、radial 和 conic 渐变字符串。
+ */
+export type PixelPaint = string
+
+/**
+ * 描述图片前景识别采用的背景来源。
+ *
+ * `auto` 从图片四边推断背景，`transparent` 只按透明度识别，其他字符串按 CSS 颜色解析。
+ */
+export type PixelSourceBackground = SourceBackground
+/**
+ * 配置相邻前景像素之间的共享分隔线。
  */
 export interface PixelBorderOptions {
+  /**
+   * 分隔线的逻辑像素宽度，必须大于 0；图片默认 1，文本默认 0.5。
+   */
   width?: number
+  /**
+   * 分隔线颜色，支持纯色及工具支持的 CSS 渐变字符串，默认白色。
+   */
   color?: PixelPaint
 }
 
@@ -24,13 +35,24 @@ export interface PixelBorderOptions {
  * 收集生成和渲染阶段共享的颜色配置。
  */
 interface PixelStyleOptions {
+  /**
+   * 前景填充颜色；`source` 保留图片逐格原色，字符串可使用纯色或受支持的 CSS 渐变。
+   */
   color?: PixelPaint | 'source'
+  /**
+   * 完整逻辑网格的背景填充；`null` 或省略表示保持透明。
+   */
   background?: PixelPaint | null
+  /**
+   * 相邻前景格之间的共享分隔线；传入 `false` 会完全关闭分隔线。
+   */
   pixelBorder?: false | PixelBorderOptions
 }
 
 /**
  * 配置 PixelArt 对象当前一次的 Canvas 渲染。
+ *
+ * 这里只覆盖颜色、背景和分隔线，不会重新采样来源或改变逻辑网格尺寸。
  */
 export interface PixelRenderOptions extends PixelStyleOptions {}
 
@@ -38,12 +60,33 @@ export interface PixelRenderOptions extends PixelStyleOptions {}
  * 配置前景检测和正方形网格生成。
  */
 export interface PixelGridOptions extends PixelStyleOptions {
+  /**
+   * 每个逻辑格从来源位图覆盖的正方形边长，单位为来源像素；默认 `auto` 自动估算特征宽度。
+   */
   pixelSize?: number | 'auto'
+  /**
+   * 自动估算时允许的最小来源格边长，必须为正整数，默认 2。
+   */
   minPixelSize?: number
+  /**
+   * 自动估算时允许的最大来源格边长，必须为正整数且不小于最小值，默认 12。
+   */
   maxPixelSize?: number
+  /**
+   * 来源格被判定为前景所需的最小覆盖比例，范围 0 至 1；图片默认 0.42，文本默认 0.16。
+   */
   coverageThreshold?: number
+  /**
+   * 来源像素被纳入前景检测所需的最小透明度，范围 0 至 1，默认 0.5。
+   */
   alphaThreshold?: number
+  /**
+   * 裁剪后在结果四周保留的空白逻辑格数量，必须为非负整数；图片默认 1，文本默认 0。
+   */
   padding?: number
+  /**
+   * 是否裁掉来源位图外围未检测到前景的区域，默认 `true`。
+   */
   trim?: boolean
 }
 
@@ -51,14 +94,41 @@ export interface PixelGridOptions extends PixelStyleOptions {
  * 配置文本源的字体测量和像素化过程。
  */
 export interface PixelTextOptions {
+  /**
+   * 绘制来源文字使用的 CSS 字体族，默认 `SimSun, "Songti SC", serif`。
+   */
   fontFamily?: string
+  /**
+   * 来源文字字号，单位为 CSS 像素，必须大于 0，默认 16。
+   */
   fontSize?: number
+  /**
+   * 来源文字字形样式，语义与 CSS `font-style` 一致，默认 `normal`。
+   */
   fontStyle?: 'normal' | 'italic' | 'oblique'
+  /**
+   * 字符之间追加的间距，单位为 CSS 像素，默认 0。
+   */
   letterSpacing?: number
+  /**
+   * 多行文字的基线间距，单位为 CSS 像素，默认字号的 1.2 倍。
+   */
   lineHeight?: number
+  /**
+   * 多行宽度不一致时在来源画布内采用的水平对齐方式，默认 `center`。
+   */
   textAlign?: 'left' | 'center' | 'right'
+  /**
+   * 文字像素填充颜色，支持纯色及受支持的 CSS 渐变，默认 `#617cf4`。
+   */
   color?: PixelPaint
+  /**
+   * 每个 em 沿单轴允许的最大逻辑格数量，必须大于 0，默认 16；数值越大采样越细。
+   */
   density?: number
+  /**
+   * 用于取消字体加载和文本栅格化任务的标准中止信号。
+   */
   signal?: AbortSignal
 }
 
@@ -71,11 +141,29 @@ type ResolvedTextOptions = PixelTextOptions & PixelGridOptions
  * 配置图片加载、背景识别和像素化过程。
  */
 export interface PixelImageOptions extends PixelGridOptions {
+  /**
+   * 图片背景识别方式：`auto` 从四边推断，`transparent` 仅按透明度识别，CSS 颜色则作为明确背景色。
+   */
   sourceBackground?: PixelSourceBackground
+  /**
+   * 来源颜色与背景色之间被视为前景所需的最小归一化色差，范围 0 至 1，默认 0.08。
+   */
   backgroundThreshold?: number
+  /**
+   * 创建图片元素时使用的 CORS 模式，默认 `anonymous`；远端服务必须允许 Canvas 读取。
+   */
   crossOrigin?: '' | 'anonymous' | 'use-credentials'
+  /**
+   * 进入采样阶段前允许的最大来源位图宽度，单位为像素，必须为正整数，默认 2048；只缩小不放大。
+   */
   maxWidth?: number
+  /**
+   * 进入采样阶段前允许的最大来源位图高度，单位为像素，必须为正整数，默认 2048；只缩小不放大。
+   */
   maxHeight?: number
+  /**
+   * 用于取消图片加载、解码和栅格化任务的标准中止信号。
+   */
   signal?: AbortSignal
 }
 
@@ -137,19 +225,43 @@ const DEFAULT_IMAGE_OPTIONS: PixelImageOptions = {
  * 描述一个有效前景像素格的位置和来源颜色。
  */
 export interface PixelArtCell {
+  /**
+   * 当前前景格在裁剪后逻辑网格中的零基列坐标。
+   */
   x: number
+  /**
+   * 当前前景格在裁剪后逻辑网格中的零基行坐标。
+   */
   y: number
+  /**
+   * 当前格从来源位图采样得到的规范化 RGBA 颜色字符串。
+   */
   color: string
 }
 
 /**
- * 描述一次渲染的逻辑网格和实际位图尺寸。
+ * 描述一次渲染的逻辑网格和紧凑输出尺寸。
  */
 export interface PixelArtDimensions {
+  /**
+   * 紧凑输出位图的宽度，单位为逻辑像素，包含内部共享分隔线。
+   */
   width: number
+  /**
+   * 紧凑输出位图的高度，单位为逻辑像素，包含内部共享分隔线。
+   */
   height: number
+  /**
+   * 裁剪并添加安全留白后的逻辑网格列数。
+   */
   columns: number
+  /**
+   * 裁剪并添加安全留白后的逻辑网格行数。
+   */
   rows: number
+  /**
+   * 当前渲染使用的彩色正方形边长，单位为逻辑像素。
+   */
   pixelSize: number
 }
 
@@ -157,9 +269,21 @@ export interface PixelArtDimensions {
  * 保存 PixelArt 对象的默认渲染样式。
  */
 interface PixelArtStyle {
+  /**
+   * 生成结果默认使用的彩色正方形边长，单位为逻辑像素。
+   */
   pixelSize: number
+  /**
+   * 默认前景填充；source 表示保留逐格来源颜色。
+   */
   color: PixelPaint | 'source'
+  /**
+   * 默认网格背景填充；省略时保持透明。
+   */
   background?: PixelPaint
+  /**
+   * 已补全宽度和颜色的共享分隔线配置，或明确关闭分隔线。
+   */
   pixelBorder: false | Required<PixelBorderOptions>
 }
 
@@ -167,12 +291,33 @@ interface PixelArtStyle {
  * 保存一次 Canvas 自适应绘制使用的物理像素布局。
  */
 interface CanvasRenderLayout {
+  /**
+   * Canvas backing store 的物理像素宽度。
+   */
   canvasWidth: number
+  /**
+   * Canvas backing store 的物理像素高度。
+   */
   canvasHeight: number
+  /**
+   * 单个彩色正方形在 backing store 中的物理像素边长。
+   */
   pixelSize: number
+  /**
+   * 共享分隔线在 backing store 中量化后的物理像素宽度。
+   */
   borderWidth: number
+  /**
+   * 相邻逻辑格左上角之间的物理像素距离。
+   */
   cellStride: number
+  /**
+   * 完整像素画相对 Canvas 左边缘的物理像素偏移。
+   */
   offsetX: number
+  /**
+   * 完整像素画相对 Canvas 顶边缘的物理像素偏移。
+   */
   offsetY: number
 }
 
@@ -180,7 +325,13 @@ interface CanvasRenderLayout {
  * 保存经过校验的栅格参数和默认样式。
  */
 interface ResolvedGridOptions {
+  /**
+   * 已通过范围校验并补全默认值的来源栅格参数。
+   */
   raster: RasterOptions
+  /**
+   * 与采样结果无关的颜色、背景和分隔线样式。
+   */
   style: Omit<PixelArtStyle, 'pixelSize'>
 }
 
@@ -929,10 +1080,25 @@ function clamp(value: number, minimum: number, maximum: number): number {
  * 保存硬阈值采样后的基础像素网格。
  */
 interface PixelGridData {
+  /**
+   * 裁剪并添加留白后的逻辑网格列数。
+   */
   columns: number
+  /**
+   * 裁剪并添加留白后的逻辑网格行数。
+   */
   rows: number
+  /**
+   * 每个逻辑格在来源位图中覆盖的正方形像素边长。
+   */
   sourcePixelSize: number
+  /**
+   * 按行存储每个逻辑格是否属于前景的二值掩码。
+   */
   mask: Uint8Array
+  /**
+   * 与掩码索引一一对应的来源采样颜色。
+   */
   colors: string[]
 }
 
@@ -940,12 +1106,33 @@ interface PixelGridData {
  * 保存栅格算法需要的完整参数。
  */
 interface RasterOptions {
+  /**
+   * 明确的来源格边长，或根据特征宽度自动估算的标记。
+   */
   pixelSize: number | 'auto'
+  /**
+   * 自动估算允许的最小来源格边长。
+   */
   minPixelSize: number
+  /**
+   * 自动估算允许的最大来源格边长。
+   */
   maxPixelSize: number
+  /**
+   * 一个来源格被保留所需的最小前景覆盖比例。
+   */
   coverageThreshold: number
+  /**
+   * 来源像素进入前景检测所需的最小归一化透明度。
+   */
   alphaThreshold: number
+  /**
+   * 裁剪后在结果四周保留的逻辑格数量。
+   */
   padding: number
+  /**
+   * 是否裁掉来源位图外围未检测到前景的区域。
+   */
   trim: boolean
 }
 
@@ -953,12 +1140,33 @@ interface RasterOptions {
  * 扩展文本绘制需要的字体和取消参数。
  */
 interface TextRasterOptions extends RasterOptions {
+  /**
+   * 来源文字使用的 CSS 字体族。
+   */
   fontFamily?: string
+  /**
+   * 来源文字字号，单位为 CSS 像素。
+   */
   fontSize?: number
+  /**
+   * 来源文字字形样式。
+   */
   fontStyle?: 'normal' | 'italic' | 'oblique'
+  /**
+   * 字符之间追加的 CSS 像素间距。
+   */
   letterSpacing?: number
+  /**
+   * 多行文字基线间距，单位为 CSS 像素。
+   */
   lineHeight?: number
+  /**
+   * 多行宽度不一致时在来源画布内采用的水平对齐方式。
+   */
   textAlign?: 'left' | 'center' | 'right'
+  /**
+   * 取消字体加载和文本栅格化任务的中止信号。
+   */
   signal?: AbortSignal
 }
 
@@ -976,11 +1184,29 @@ type SourceBackground = 'auto' | 'transparent' | string
  * 扩展图片加载和背景分析需要的参数。
  */
 interface ImageRasterOptions extends RasterOptions {
+  /**
+   * 背景推断模式或明确的 CSS 背景颜色。
+   */
   sourceBackground?: SourceBackground
+  /**
+   * 来源颜色与背景色之间被视为前景所需的最小归一化色差。
+   */
   backgroundThreshold?: number
+  /**
+   * 创建内部图片元素时采用的 CORS 模式。
+   */
   crossOrigin?: '' | 'anonymous' | 'use-credentials'
+  /**
+   * 采样前允许的最大来源位图宽度。
+   */
   maxWidth?: number
+  /**
+   * 采样前允许的最大来源位图高度。
+   */
   maxHeight?: number
+  /**
+   * 取消图片加载、解码和栅格化任务的中止信号。
+   */
   signal?: AbortSignal
 }
 
@@ -988,19 +1214,68 @@ interface ImageRasterOptions extends RasterOptions {
  * 表示内部颜色计算使用的 RGBA 通道。
  */
 interface RgbaColor {
+  /**
+   * 红色通道值，范围 0 至 255。
+   */
   r: number
+  /**
+   * 绿色通道值，范围 0 至 255。
+   */
   g: number
+  /**
+   * 蓝色通道值，范围 0 至 255。
+   */
   b: number
+  /**
+   * 透明度通道值，范围 0 至 255。
+   */
   a: number
 }
 
 /**
+ * 累计同一量化颜色桶中的像素数量和 RGBA 通道总值。
+ */
+interface ColorBucket {
+  /**
+   * 当前颜色桶累计的边缘像素数量。
+   */
+  count: number
+  /**
+   * 当前颜色桶累计的红色通道总值。
+   */
+  r: number
+  /**
+   * 当前颜色桶累计的绿色通道总值。
+   */
+  g: number
+  /**
+   * 当前颜色桶累计的蓝色通道总值。
+   */
+  b: number
+  /**
+   * 当前颜色桶累计的透明度通道总值。
+   */
+  a: number
+}
+/**
  * 描述前景在位图或逻辑网格中的整数边界。
  */
 interface Bounds {
+  /**
+   * 边界左上角相对来源区域的零基横坐标。
+   */
   x: number
+  /**
+   * 边界左上角相对来源区域的零基纵坐标。
+   */
   y: number
+  /**
+   * 边界覆盖的整数像素宽度。
+   */
   width: number
+  /**
+   * 边界覆盖的整数像素高度。
+   */
   height: number
 }
 
@@ -1347,7 +1622,6 @@ function rasterizeCanvas(
   const bounds = options.trim
     ? sourceBounds
     : { x: 0, y: 0, width: imageData.width, height: imageData.height }
-
   return sampleGrid(
     imageData,
     sourceMask,
@@ -1394,7 +1668,9 @@ function createSourceMask(
   const background = resolveBackground(imageData, sourceBackground)
 
   for (let index = 0; index < mask.length; index += 1) {
+    // 当前像素在 RGBA 连续通道数组中的起始偏移。
     const offset = index * 4
+    // 当前来源像素的透明度通道值。
     const alpha = imageData.data[offset + 3]
 
     if (alpha < alphaCutoff) {
@@ -1473,18 +1749,22 @@ function getBorderIndexes(width: number, height: number): number[] {
  */
 function dominantBorderColor(imageData: ImageData, indexes: number[]): RgbaColor {
   // 颜色按每通道高四位分桶，降低轻微压缩噪声的影响。
-  const buckets = new Map<
-    number,
-    { count: number; r: number; g: number; b: number; a: number }
-  >()
+  const buckets = new Map<number, ColorBucket>()
 
   indexes.forEach((index) => {
+    // 当前像素在 RGBA 连续通道数组中的起始偏移。
     const offset = index * 4
+    // 当前边缘像素的红色通道值。
     const r = imageData.data[offset]
+    // 当前边缘像素的绿色通道值。
     const g = imageData.data[offset + 1]
+    // 当前边缘像素的蓝色通道值。
     const b = imageData.data[offset + 2]
+    // 当前边缘像素的透明度通道值。
     const a = imageData.data[offset + 3]
+    // 高四位通道组合成稳定颜色桶的整数键。
     const key = (r >> 4) * 256 + (g >> 4) * 16 + (b >> 4)
+    // 当前颜色桶累计出现次数和各通道总值。
     const bucket = buckets.get(key) ?? { count: 0, r: 0, g: 0, b: 0, a: 0 }
 
     bucket.count += 1
@@ -1552,6 +1832,7 @@ function estimateFeatureWidth(
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
+      // 当前扫描坐标在行优先数组中的索引。
       const index = y * width + x
 
       if (distances[index] === 0) {
@@ -1570,6 +1851,7 @@ function estimateFeatureWidth(
 
   for (let y = height - 1; y >= 0; y -= 1) {
     for (let x = width - 1; x >= 0; x -= 1) {
+      // 当前扫描坐标在行优先数组中的索引。
       const index = y * width + x
 
       if (distances[index] === 0) {
@@ -1591,6 +1873,7 @@ function estimateFeatureWidth(
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
+      // 当前前景位置到最近背景的离散距离。
       const value = distances[y * width + x]
 
       if (value !== 0 && isLocalMaximum(distances, width, height, x, y, value)) {
@@ -1684,9 +1967,13 @@ function sampleGrid(
 
   for (let gridY = 0; gridY < rows; gridY += 1) {
     for (let gridX = 0; gridX < columns; gridX += 1) {
+      // 当前逻辑格在来源位图中的起始横坐标。
       const startX = bounds.x + gridX * pixelSize
+      // 当前逻辑格在来源位图中的起始纵坐标。
       const startY = bounds.y + gridY * pixelSize
+      // 当前逻辑格不越过采样边界的结束横坐标。
       const endX = Math.min(startX + pixelSize, bounds.x + bounds.width)
+      // 当前逻辑格不越过采样边界的结束纵坐标。
       const endY = Math.min(startY + pixelSize, bounds.y + bounds.height)
       // 当前逻辑格内命中的来源前景像素数量。
       let count = 0
@@ -1701,12 +1988,14 @@ function sampleGrid(
 
       for (let sourceY = startY; sourceY < endY; sourceY += 1) {
         for (let sourceX = startX; sourceX < endX; sourceX += 1) {
+          // 当前来源坐标在位图和前景掩码中的行优先索引。
           const sourceIndex = sourceY * imageData.width + sourceX
 
           if (sourceMask[sourceIndex] === 0) {
             continue
           }
 
+          // 当前前景像素在 RGBA 连续通道数组中的起始偏移。
           const offset = sourceIndex * 4
           count += 1
           red += imageData.data[offset]
@@ -1736,6 +2025,7 @@ function sampleGrid(
         continue
       }
 
+      // 当前逻辑格在输出掩码和颜色数组中的行优先索引。
       const targetIndex = gridY * columns + gridX
       mask[targetIndex] = 1
       colors[targetIndex] = toRgbaString({
@@ -1804,15 +2094,20 @@ function preserveBoundedBackgroundGaps(
 
   for (let gridY = 0; gridY < rows; gridY += 1) {
     for (let gridX = 0; gridX < columns; gridX += 1) {
+      // 当前待检查逻辑格在原始网格中的行优先索引。
       const gridIndex = gridY * columns + gridX
 
       if (originalMask[gridIndex] === 0) {
         continue
       }
 
+      // 当前逻辑格在来源位图中的起始横坐标。
       const startX = bounds.x + gridX * pixelSize
+      // 当前逻辑格在来源位图中的起始纵坐标。
       const startY = bounds.y + gridY * pixelSize
+      // 当前逻辑格不越过采样边界的结束横坐标。
       const endX = Math.min(startX + pixelSize, bounds.x + bounds.width)
+      // 当前逻辑格不越过采样边界的结束纵坐标。
       const endY = Math.min(startY + pixelSize, bounds.y + bounds.height)
       // 标记来源格中是否存在一整行背景通道。
       let hasHorizontalBackgroundChannel = false
@@ -1896,14 +2191,18 @@ function cropAndPad(
 
   for (let y = 0; y < bounds.height; y += 1) {
     for (let x = 0; x < bounds.width; x += 1) {
+      // 当前裁剪列映射回原始逻辑网格的横坐标。
       const sourceX = bounds.x + x
+      // 当前裁剪行映射回原始逻辑网格的纵坐标。
       const sourceY = bounds.y + y
 
       if (sourceX >= sourceColumns || sourceY >= sourceRows) {
         continue
       }
 
+      // 当前来源格在原始掩码和颜色数组中的行优先索引。
       const sourceIndex = sourceY * sourceColumns + sourceX
+      // 当前来源格平移并添加留白后的目标索引。
       const targetIndex = (y + padding) * columns + x + padding
       targetMask[targetIndex] = mask[sourceIndex]
       targetColors[targetIndex] = colors[sourceIndex]
@@ -2013,7 +2312,13 @@ function assertPositiveNumber(value: number, name: string) {
  * 描述渐变色标及其可选归一化位置。
  */
 interface ColorStop {
+  /**
+   * 当前色标使用的浏览器可解析 CSS 颜色。
+   */
   color: string
+  /**
+   * 当前色标在渐变轴上的归一化位置，范围 0 至 1；省略时由相邻色标均分。
+   */
   offset?: number
 }
 
@@ -2044,6 +2349,7 @@ function createPixelPalette(paint: string, width: number, height: number): strin
   const palette = Array<string>(width * height)
 
   for (let index = 0; index < palette.length; index += 1) {
+    // 当前像素在 RGBA 连续通道数组中的起始偏移。
     const offset = index * 4
     palette[index] = toRgbaString({
       r: data[offset],
@@ -2496,6 +2802,7 @@ function splitTopLevel(value: string): string[] {
   let start = 0
 
   for (let index = 0; index < value.length; index += 1) {
+    // 当前扫描位置的原始字符。
     const character = value[index]
 
     if (character === '(') {
@@ -2520,6 +2827,7 @@ function findLastTopLevelWhitespace(value: string): number {
   let depth = 0
 
   for (let index = value.length - 1; index >= 0; index -= 1) {
+    // 当前扫描位置的原始字符。
     const character = value[index]
 
     if (character === ')') {

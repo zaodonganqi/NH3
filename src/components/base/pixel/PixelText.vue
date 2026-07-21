@@ -11,14 +11,41 @@ import { readPixelTextLayout, renderPixelText } from '../../../utils'
 
 // 组件参数与文本工具保持一致，布局宽度仍由外部容器控制。
 const props = withDefaults(defineProps<{
+  /**
+   * 需要按浏览器真实排版转换为像素画的原始文本。
+   */
   text: string
+  /**
+   * 来源文字使用的 CSS 字体族；省略时继承组件最终计算样式。
+   */
   fontFamily?: string
+  /**
+   * 来源文字字号，单位为 CSS 像素；省略时读取组件计算字号。
+   */
   fontSize?: number
+  /**
+   * 来源文字字形样式；省略时读取组件计算样式。
+   */
   fontStyle?: 'normal' | 'italic' | 'oblique'
+  /**
+   * 字符之间追加的间距，单位为 CSS 像素。
+   */
   letterSpacing?: number
+  /**
+   * 多行文字基线间距，单位为 CSS 像素。
+   */
   lineHeight?: number
+  /**
+   * 多行宽度不一致时在来源画布内采用的水平对齐方式。
+   */
   textAlign?: 'left' | 'center' | 'right'
+  /**
+   * 像素文字填充使用的纯色或受支持渐变；省略时继承普通 CSS 颜色。
+   */
   color?: string
+  /**
+   * 每个 em 沿单轴允许的最大逻辑格数量；数值越大采样越细。
+   */
   density?: number
 }>(), {
   density: 16,

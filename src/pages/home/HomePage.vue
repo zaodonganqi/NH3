@@ -25,7 +25,7 @@ import {
   ProjectSection,
   ToolSection,
 } from '../../components/home'
-import { SiteFooter, SiteHeader } from '../../components/layout'
+import { SiteFooter, SiteHeader } from '../../components/site'
 
 gsap.registerPlugin(ScrollTrigger, ScrollToPlugin)
 

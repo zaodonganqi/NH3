@@ -66,6 +66,9 @@ const terminalEdges = ['terminal__edge--top', 'terminal__edge--right', 'terminal
 
 // 首屏只把主行动链接交给首页页面级滚动控制器。
 const emit = defineEmits<{
+  /**
+   * 请求首页滚动控制器处理“探索更多”链接的站内导航。
+   */
   navigate: [event: MouseEvent]
 }>()
 </script>

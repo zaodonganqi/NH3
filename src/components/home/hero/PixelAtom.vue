@@ -12,6 +12,9 @@ import { PixelPattern } from '../../base/pixel'
 
 // 原子组件只接受当前 NH3 图形需要的氮、氢元素。
 const props = defineProps<{
+  /**
+   * 决定原子尺寸、字母图案和元素调色板的化学元素符号。
+   */
   element: 'N' | 'H'
 }>()
 

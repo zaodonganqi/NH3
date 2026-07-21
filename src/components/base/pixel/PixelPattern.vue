@@ -16,7 +16,13 @@ import type { PixelPalette } from '../../../types'
 
 // 字符图案和调色板共同决定每个方格是否填充及其颜色。
 defineProps<{
+  /**
+   * 按行保存的字符矩阵；点号表示透明格，其他字符作为调色板键。
+   */
   pattern: string[]
+  /**
+   * 把图案字符映射为 CSS 填充颜色的调色板。
+   */
   palette: PixelPalette
 }>()
 </script>

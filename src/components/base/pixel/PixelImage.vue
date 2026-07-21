@@ -14,9 +14,21 @@ import {
 
 // 图片地址、无障碍名称和可选生成配置构成组件的公开参数。
 const props = defineProps<{
+  /**
+   * 浏览器可加载的图片 URL、Data URL 或构建工具生成的资源地址。
+   */
   source: string
+  /**
+   * 组件作为图片暴露给辅助技术的可访问名称。
+   */
   label: string
+  /**
+   * 覆盖来源颜色的纯色或受支持渐变；省略时沿用图片生成配置。
+   */
   color?: string
+  /**
+   * 传递给图片栅格化工具的采样、背景识别和分隔线配置。
+   */
   options?: PixelImageOptions
 }>()
 

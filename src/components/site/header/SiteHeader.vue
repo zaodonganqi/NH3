@@ -30,12 +30,7 @@
         @click="handleNavigationClick($event, item)"
       >
         <span class="nav__icon" aria-hidden="true">
-          <PixelImage
-            :source="item.icon"
-            :label="item.label"
-            color="linear-gradient(135deg, #294cc8 0%, #159e9a 100%)"
-            :options="navPixelOptions"
-          />
+          <HeaderPixelIcon :pattern="item.iconPattern" />
         </span>
         <span>{{ item.label }}</span>
       </a>
@@ -44,26 +39,16 @@
 </template>
 
 <script setup lang="ts">
-import type { NavItem } from '../../config/site'
-import { navItems } from '../../config/site'
-import type { PixelImageOptions } from '../../utils'
-import { PixelImage, PixelText } from '../base/pixel'
-
-// 导航 SVG 统一采用粗颗粒采样和 1px 白线，避免不同来源图标出现清晰度跳变。
-const navPixelOptions: PixelImageOptions = {
-  pixelSize: 5,
-  coverageThreshold: 0.12,
-  alphaThreshold: 0.1,
-  padding: 0,
-  trim: true,
-  pixelBorder: {
-    width: 1,
-    color: '#ffffff',
-  },
-}
+import type { NavItem } from '../../../config/site'
+import { navItems } from '../../../config/site'
+import { PixelText } from '../../base/pixel'
+import HeaderPixelIcon from './HeaderPixelIcon.vue'
 
 // 当前章节用于同步顶部导航的选中状态。
 const props = withDefaults(defineProps<{
+  /**
+   * 当前进入视口的首页章节标识，用于同步导航高亮状态。
+   */
   activeSection?: string
 }>(), {
   activeSection: 'home',
@@ -71,6 +56,9 @@ const props = withDefaults(defineProps<{
 
 // Header 只把站内锚点点击交给页面处理，外部链接保留浏览器默认行为。
 const emit = defineEmits<{
+  /**
+   * 请求首页滚动控制器导航到指定站内章节，并保留原始点击事件。
+   */
   navigate: [event: MouseEvent, sectionId: string]
 }>()
 
@@ -180,10 +168,6 @@ function handleNavigationClick(event: MouseEvent, item: NavItem) {
   place-items: center;
 }
 
-.nav__icon :deep(.pixel-image) {
-  width: 40px;
-  height: 40px;
-}
 
 .nav__item > span:last-child {
   font-size: 11px;
