@@ -24,6 +24,7 @@
           'nav__item--external': item.external,
         }"
         :href="item.href"
+        :style="{ '--nav-active-color': item.activeColor }"
         :target="item.external ? '_blank' : undefined"
         :rel="item.external ? 'noreferrer' : undefined"
         :aria-label="item.external ? '打开 GitHub' : undefined"
@@ -81,8 +82,8 @@ function handleNavigationClick(event: MouseEvent, item: NavItem) {
 
 <style scoped>
 .site-header {
-  position: absolute;
-  z-index: 10;
+  position: fixed;
+  z-index: 30;
   top: 38px;
   left: 40px;
   display: flex;
@@ -150,15 +151,9 @@ function handleNavigationClick(event: MouseEvent, item: NavItem) {
   width: 66px;
   justify-items: center;
   gap: 9px;
-  color: #6b7d9d;
+  color: #9aadd4;
   text-decoration: none;
   transition: color 180ms ease, transform 180ms ease;
-}
-
-.nav__item:hover,
-.nav__item:focus-visible {
-  color: #526ee5;
-  transform: translateY(-3px);
 }
 
 .nav__icon {
@@ -175,7 +170,7 @@ function handleNavigationClick(event: MouseEvent, item: NavItem) {
 }
 
 .nav__item--active {
-  color: #5b77ef;
+  color: var(--nav-active-color);
 }
 
 .nav__item--active::after {
@@ -185,11 +180,17 @@ function handleNavigationClick(event: MouseEvent, item: NavItem) {
   width: 50px;
   height: 4px;
   content: "";
-  background: repeating-linear-gradient(90deg, #67a1ee 0 4px, transparent 4px 8px);
+  background: repeating-linear-gradient(90deg, var(--nav-active-color) 0 4px, transparent 4px 8px);
 }
 
-.nav__item--external {
-  color: #2d3f5b;
+.nav__item:hover,
+.nav__item:focus-visible {
+  color: #5f78b8;
+  transform: translateY(-3px);
+}
+
+.nav__item:active {
+  color: var(--nav-active-color);
 }
 
 

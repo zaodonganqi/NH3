@@ -21,6 +21,10 @@ export interface NavItem {
    */
   iconPattern: readonly string[]
   /**
+   * 当前入口激活时使用的纯色；未激活入口仍使用统一的淡蓝色。
+   */
+  activeColor: string
+  /**
    * 标记是否交由浏览器新窗口打开；省略时按站内锚点处理。
    */
   external?: boolean
@@ -118,36 +122,42 @@ export const navItems: NavItem[] = [
     label: 'HOME',
     href: '#home',
     iconPattern: navIconPatterns.home,
+    activeColor: '#e85c68',
   },
   {
     id: 'project',
     label: 'PROJECT',
     href: '#project',
     iconPattern: navIconPatterns.project,
+    activeColor: '#e8944a',
   },
   {
     id: 'tool',
     label: 'TOOL',
     href: '#tool',
     iconPattern: navIconPatterns.tool,
+    activeColor: '#d8b33f',
   },
   {
     id: 'blog',
     label: 'BLOG',
     href: '#blog',
     iconPattern: navIconPatterns.blog,
+    activeColor: '#4aa875',
   },
   {
     id: 'about',
     label: 'ABOUT',
     href: '#about',
     iconPattern: navIconPatterns.about,
+    activeColor: '#38a8b4',
   },
   {
     id: 'github',
     label: 'GITHUB',
     href: githubUrl,
     iconPattern: navIconPatterns.github,
+    activeColor: '#8a6fd1',
     external: true,
   },
 ]

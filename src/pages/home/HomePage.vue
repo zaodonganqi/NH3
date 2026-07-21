@@ -29,29 +29,32 @@ import { SiteFooter, SiteHeader } from '../../components/site'
 
 gsap.registerPlugin(ScrollTrigger, ScrollToPlugin)
 
-// 当前进入主要视区的章节决定 Header 选中项。
-const activeSection = ref('home')
+// 首页导航对应的真实章节顺序，也是 ScrollTrigger 建立判定区间的稳定来源。
+const sectionIds = ['home', 'project', 'tool', 'blog', 'about'] as const
 
-// 首页导航对应的真实章节顺序。
-const sectionIds = ['home', 'project', 'tool', 'blog', 'about']
+/**
+ * 限制首页滚动状态只能指向实际存在的章节。
+ */
+type HomeSectionId = (typeof sectionIds)[number]
 
-// 章节可见性监听器在页面卸载时统一断开。
-let sectionObserver: IntersectionObserver | undefined
+// 当前越过视口判定线的章节决定 Header 选中项。
+const activeSection = ref<HomeSectionId>('home')
 
 // 保存首页 GSAP 上下文，页面卸载时统一回收动画和 ScrollTrigger。
 let animationContext: gsap.Context | undefined
 
-// 页面挂载后建立章节监听并创建内容入场动效。
+// 页面挂载后建立 GSAP 章节判定与内容入场动效。
 onMounted(async () => {
   await nextTick()
-  observeHomeSections()
 
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    return
-  }
-
-  // GSAP 上下文回调集中创建并管理首页范围内的动画。
+  // GSAP 上下文统一管理章节判定、入场动画和内部 ScrollTrigger。
   animationContext = gsap.context(() => {
+    createSectionScrollTracking()
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return
+    }
+
     // 首屏时间线只负责真实页面内容的统一入场。
     const intro = gsap.timeline({ defaults: { ease: 'steps(6)' } })
 
@@ -93,59 +96,41 @@ onMounted(async () => {
       )
     })
   }, document.body)
+
+  ScrollTrigger.refresh()
 })
 
-// 页面卸载时恢复 GSAP 状态并断开章节可见性监听。
+// 页面卸载时恢复 GSAP 状态并销毁章节判定触发器。
 onUnmounted(() => {
   animationContext?.revert()
-  sectionObserver?.disconnect()
 })
 
 /**
- * 创建首页章节的可见性监听，并同步 Header 当前项。
+ * 使用 GSAP ScrollTrigger 在固定视口判定线上同步当前章节。
  */
-function observeHomeSections() {
-  // 页面中实际存在的首页章节节点。
-  const sections: HTMLElement[] = []
-
-  // 章节标识循环负责解析真实 DOM 节点。
+function createSectionScrollTracking() {
   for (const sectionId of sectionIds) {
-    // 当前标识对应的章节节点可能尚未存在。
+    // 当前标识对应的真实章节节点用于建立独立滚动区间。
     const section = document.getElementById(sectionId)
 
-    if (section) {
-      sections.push(section)
+    if (!section) {
+      continue
     }
-  }
 
-  sectionObserver = new IntersectionObserver(handleSectionIntersections, {
-    rootMargin: '-28% 0px -58% 0px',
-    threshold: [0, 0.1, 0.4],
-  })
-
-  // 每个真实章节都加入同一个观察器。
-  sections.forEach((section) => sectionObserver?.observe(section))
-}
-
-/**
- * 从当前相交章节中选择最靠近视区上方的一个作为活动项。
- */
-function handleSectionIntersections(entries: IntersectionObserverEntry[]) {
-  // 当前最接近导航判定区域上边缘的章节。
-  let selectedEntry: IntersectionObserverEntry | undefined
-
-  // 相交项循环排除不可见章节并比较纵向位置。
-  for (const entry of entries) {
-    if (
-      entry.isIntersecting
-      && (!selectedEntry || entry.boundingClientRect.top < selectedEntry.boundingClientRect.top)
-    ) {
-      selectedEntry = entry
+    /**
+     * 当前章节进入判定区间时同步 Header 状态和颜色。
+     */
+    const activateSection = () => {
+      activeSection.value = sectionId
     }
-  }
 
-  if (selectedEntry?.target.id) {
-    activeSection.value = selectedEntry.target.id
+    ScrollTrigger.create({
+      trigger: section,
+      start: 'top 45%',
+      end: 'bottom 45%',
+      onEnter: activateSection,
+      onEnterBack: activateSection,
+    })
   }
 }
 
@@ -162,8 +147,19 @@ function scrollToSection(event: MouseEvent, sectionId?: string) {
     return
   }
 
+  // 请求标识必须匹配首页真实章节，外部入口不会进入该分支。
+  const requestedSectionId = sectionId ?? target.id
+  // 查找到的稳定标识用于更新受限的首页章节状态。
+  const resolvedSectionId = sectionIds.find(
+    (candidate) => candidate === requestedSectionId,
+  )
+
   event.preventDefault()
-  activeSection.value = sectionId ?? target.id
+
+  if (resolvedSectionId) {
+    activeSection.value = resolvedSectionId
+  }
+
   gsap.to(window, {
     duration: 0.72,
     scrollTo: { y: target, offsetY: 0 },

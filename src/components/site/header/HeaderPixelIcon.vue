@@ -6,7 +6,8 @@
       '--rows': pattern.length,
     }"
     aria-hidden="true"
-  >    <template v-for="(row, rowIndex) in pattern" :key="rowIndex">
+  >
+    <template v-for="(row, rowIndex) in pattern" :key="rowIndex">
       <i
         v-for="(cell, columnIndex) in [...row]"
         :key="[rowIndex, columnIndex].join('-')"
@@ -15,10 +16,6 @@
           'pixel--right': cell !== '.' && row[columnIndex + 1] !== '.',
           'pixel--bottom':
             cell !== '.' && pattern[rowIndex + 1]?.[columnIndex] !== '.',
-        }"
-        :style="{
-          '--column': columnIndex,
-          '--row': rowIndex,
         }"
       ></i>
     </template>
@@ -43,6 +40,7 @@ defineProps<{
   grid-template-columns: repeat(var(--columns), var(--pixel-size));
   grid-template-rows: repeat(var(--rows), var(--pixel-size));
   place-content: center;
+  color: inherit;
   image-rendering: pixelated;
 }
 
@@ -54,13 +52,7 @@ i {
 }
 
 .pixel--filled {
-  background-image: linear-gradient(135deg, #294cc8 0%, #159e9a 100%);
-  background-position:
-    calc(var(--column) * var(--pixel-size) * -1)
-    calc(var(--row) * var(--pixel-size) * -1);
-  background-size:
-    calc(var(--columns) * var(--pixel-size))
-    calc(var(--rows) * var(--pixel-size));
+  background: currentColor;
 }
 
 .pixel--right::before,
