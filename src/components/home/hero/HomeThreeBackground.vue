@@ -7,6 +7,7 @@ import { onMounted, onUnmounted, ref } from 'vue'
 import {
   BoxGeometry,
   Color,
+  DynamicDrawUsage,
   Group,
   InstancedMesh,
   MathUtils,
@@ -114,8 +115,8 @@ let camera: PerspectiveCamera | undefined
 // WebGL 渲染器实例，限制像素比以控制 GPU 成本。
 let renderer: WebGLRenderer | undefined
 
-// 按场景锚点静态展示的像素图形组。
-const decorationGroups: Group[] = []
+// 全部静态像素图案共享的实例化网格，把装饰压缩为一个 draw call。
+let decorationMesh: InstancedMesh | undefined
 
 // 右下角像素频谱的实例化网格。
 let equalizerMesh: InstancedMesh | undefined
@@ -123,8 +124,26 @@ let equalizerMesh: InstancedMesh | undefined
 // 右下角频谱组，用于统一定位和轻微倾斜。
 let equalizerGroup: Group | undefined
 
+// 静态装饰在尺寸变化时复用的矩阵代理对象。
+const decorationTransform = new Object3D()
+
+// 动态频谱更新实例矩阵时复用的代理对象。
+const equalizerTransform = new Object3D()
+
+// 每列上一次写入 GPU 缓冲区的高度，用于跳过未变化列。
+const equalizerHeights = new Array<number>(EQUALIZER_COLUMNS).fill(-1)
+
+// 上一次处理的低频时间片，避免同一时间片重复计算和绘制。
+let lastEqualizerSample = -1
+
 // 首屏尺寸监听器，只在画布实际变化时更新投影。
 let resizeObserver: ResizeObserver | undefined
+
+// 首屏可见性监听器，离开视口后停止 Three.js 定时渲染。
+let sceneVisibilityObserver: IntersectionObserver | undefined
+
+// 当前画布是否与视口相交，决定是否允许提交 WebGL 帧。
+let sceneVisible = true
 
 // 系统减少动态效果偏好，用于停止频谱定时更新。
 let reducedMotionQuery: MediaQueryList | undefined
@@ -153,61 +172,54 @@ function countPatternPixels(pattern: string[]) {
 }
 
 /**
- * 把一个二维像素图案构造成单次绘制的实例化立方体组。
+ * 把全部静态像素图案合并为一个带实例颜色的网格。
  */
-function createPixelShape(definition: PixelShapeDefinition) {
-  // 所有像素共享的单位立方体几何体。
+function createPixelShapes() {
+  // 全部图案有效像素的总数决定单个实例缓冲区容量。
+  let instanceCount = 0
+
+  // 图案循环汇总所有有效像素，避免为每个形状创建独立网格。
+  for (const definition of PIXEL_SHAPES) {
+    instanceCount += countPatternPixels(definition.pattern)
+  }
+
+  // 所有静态装饰共享的单位立方体几何体。
   const geometry = new BoxGeometry(1, 1, 1)
-  // 当前图形共享的半透明材质。
+  // 单一材质结合实例颜色保留各图案原有配色。
   const material = new MeshBasicMaterial({
-    color: definition.color,
     opacity: 0.48,
     transparent: true,
     depthWrite: false,
   })
-  // 当前图案所需的实例总数。
-  const instanceCount = countPatternPixels(definition.pattern)
-  // 同一图形的所有像素合并为一个实例化网格。
+  // 合并后的网格把四个静态图案压缩为一个 draw call。
   const mesh = new InstancedMesh(geometry, material, instanceCount)
-  // 复用的矩阵代理对象，避免为每个像素创建独立 Mesh。
-  const transform = new Object3D()
-  // 长度映射回调只读取每行列数，不改变原图案。
-  const columnCount = Math.max(...definition.pattern.map((row) => row.length))
-  // 图案行数用于把局部原点放到形状中心。
-  const rowCount = definition.pattern.length
-  // 当前写入实例缓冲区的位置。
+  // 当前写入实例颜色缓冲区的稳定下标。
   let instanceIndex = 0
 
-  // 外层回调按行写入实例并保留纵向顺序。
-  definition.pattern.forEach((row, rowIndex) => {
-    // 内层回调按列跳过透明格并写入有效像素矩阵。
-    Array.from(row).forEach((cell, columnIndex) => {
-      if (cell === '.') {
-        return
+  // 图案循环按原顺序为每个有效像素写入实例颜色。
+  for (const definition of PIXEL_SHAPES) {
+    // 当前图案复用的 Three.js 颜色对象。
+    const color = new Color(definition.color)
+
+    // 行循环只负责扫描图案中的有效像素。
+    for (const row of definition.pattern) {
+      // 单元循环跳过透明格并写入当前图案颜色。
+      for (const cell of row) {
+        if (cell === '.') {
+          continue
+        }
+
+        mesh.setColorAt(instanceIndex, color)
+        instanceIndex += 1
       }
+    }
+  }
 
-      transform.position.set(
-        (columnIndex - (columnCount - 1) / 2) * definition.pixelSize,
-        ((rowCount - 1) / 2 - rowIndex) * definition.pixelSize,
-        0,
-      )
-      transform.scale.setScalar(definition.pixelSize * 0.86)
-      transform.updateMatrix()
-      mesh.setMatrixAt(instanceIndex, transform.matrix)
-      instanceIndex += 1
-    })
-  })
-
-  mesh.instanceMatrix.needsUpdate = true
+  mesh.instanceColor!.needsUpdate = true
   mesh.frustumCulled = false
+  decorationMesh = mesh
 
-  // 图形容器保存布局定义，尺寸变化时无需重建几何体。
-  const group = new Group()
-  group.add(mesh)
-  group.userData.definition = definition
-  decorationGroups.push(group)
-
-  return group
+  return mesh
 }
 
 /**
@@ -228,6 +240,10 @@ function createEqualizer() {
     material,
     EQUALIZER_COLUMNS * EQUALIZER_ROWS,
   )
+  mesh.instanceMatrix.setUsage(DynamicDrawUsage)
+  equalizerHeights.fill(-1)
+  lastEqualizerSample = -1
+
   // 三种频谱颜色按列循环使用。
   const colors = [new Color(0x79cfe8), new Color(0x7f90ee), new Color(0xefa3cd)]
 
@@ -255,10 +271,10 @@ function createEqualizer() {
 }
 
 /**
- * 根据首屏宽高把百分比锚点映射到相机可见区域。
+ * 根据首屏宽高更新合并实例的世界矩阵和频谱锚点。
  */
 function layoutScene(width: number, height: number) {
-  if (!camera || !equalizerGroup) {
+  if (!camera || !decorationMesh || !equalizerGroup) {
     return
   }
 
@@ -266,37 +282,79 @@ function layoutScene(width: number, height: number) {
   const visibleHeight = 2 * Math.tan(MathUtils.degToRad(CAMERA_FOV / 2)) * CAMERA_DISTANCE
   // 背景平面在当前宽高比下的可见宽度。
   const visibleWidth = visibleHeight * (width / height)
+  // 当前写入静态装饰实例矩阵的稳定下标。
+  let instanceIndex = 0
 
-  // 布局回调只更新图形组锚点，不改变内部像素。
-  decorationGroups.forEach((group) => {
-    // 当前图形创建时保存的布局定义。
-    const definition = group.userData.definition as PixelShapeDefinition
+  // 图案循环把各自锚点和局部像素坐标写入同一个实例缓冲区。
+  for (const definition of PIXEL_SHAPES) {
     // 当前图形基于百分比锚点计算出的横向位置。
-    const positionX = (definition.anchorX - 0.5) * visibleWidth
+    const anchorX = (definition.anchorX - 0.5) * visibleWidth
     // 当前图形基于百分比锚点计算出的纵向位置。
-    const positionY = (0.5 - definition.anchorY) * visibleHeight
-    group.position.set(positionX, positionY, definition.depth)
-  })
+    const anchorY = (0.5 - definition.anchorY) * visibleHeight
+    // 当前图案最长行的列数用于保持局部原点居中。
+    let columnCount = 0
 
+    // 行循环解析图案的最大列数，不创建临时映射数组。
+    for (const row of definition.pattern) {
+      columnCount = Math.max(columnCount, row.length)
+    }
+
+    // 图案行数用于把局部原点放到形状中心。
+    const rowCount = definition.pattern.length
+
+    // 行索引循环保持图案原有纵向顺序。
+    for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+      // 当前图案行保存透明格和有效像素。
+      const row = definition.pattern[rowIndex]
+
+      // 列索引循环跳过透明格并更新有效实例矩阵。
+      for (let columnIndex = 0; columnIndex < row.length; columnIndex += 1) {
+        if (row[columnIndex] === '.') {
+          continue
+        }
+
+        decorationTransform.position.set(
+          anchorX + (columnIndex - (columnCount - 1) / 2) * definition.pixelSize,
+          anchorY + ((rowCount - 1) / 2 - rowIndex) * definition.pixelSize,
+          definition.depth,
+        )
+        decorationTransform.scale.setScalar(definition.pixelSize * 0.86)
+        decorationTransform.updateMatrix()
+        decorationMesh.setMatrixAt(instanceIndex, decorationTransform.matrix)
+        instanceIndex += 1
+      }
+    }
+  }
+
+  decorationMesh.instanceMatrix.needsUpdate = true
   equalizerGroup.position.set(visibleWidth * 0.34, -visibleHeight * 0.405, -1.4)
 }
 
 /**
- * 按当前低频时间步更新右下角频谱实例矩阵。
+ * 更新高度发生变化的频谱列，并返回实例缓冲区是否被修改。
  */
 function updateEqualizer(elapsed: number) {
   if (!equalizerMesh) {
-    return
+    return false
   }
 
-  // 时间按三分之一秒取样，使柱体以统一节奏变化。
-  const sampledTime = Math.floor(elapsed * 3) / 3
-  // 复用的矩阵代理对象，避免更新时创建临时 Mesh。
-  const transform = new Object3D()
+  // 三分之一秒对应一个离散时间片，同一时间片不重复计算。
+  const sampleIndex = Math.floor(elapsed * 3)
+
+  if (sampleIndex === lastEqualizerSample) {
+    return false
+  }
+
+  lastEqualizerSample = sampleIndex
+
+  // 离散时间片转换回秒数，保持原有低频波形节奏。
+  const sampledTime = sampleIndex / 3
   // 每个频谱方块的固定世界尺寸。
   const blockSize = 0.2
   // 相邻方块之间的固定间距。
   const blockGap = 0.055
+  // 标记本次是否有任意频谱列发生高度变化。
+  let matrixChanged = false
 
   // 列循环独立计算每根频谱柱的低频波形。
   for (let column = 0; column < EQUALIZER_COLUMNS; column += 1) {
@@ -306,37 +364,54 @@ function updateEqualizer(elapsed: number) {
     // 当前列显示的整数方块数。
     const activeRows = MathUtils.clamp(Math.round(4.8 + wave * 3.1), 1, EQUALIZER_ROWS)
 
-    // 行循环按当前柱高显示或隐藏固定尺寸方块。
+    if (equalizerHeights[column] === activeRows) {
+      continue
+    }
+
+    equalizerHeights[column] = activeRows
+    matrixChanged = true
+
+    // 行循环仅在当前柱高变化时重写这一列的实例矩阵。
     for (let row = 0; row < EQUALIZER_ROWS; row += 1) {
       // 当前方块在实例缓冲区中的稳定下标。
       const instanceIndex = column * EQUALIZER_ROWS + row
       // 当前方块是否属于当前时间步的可见柱体高度。
       const isVisible = row < activeRows
-      transform.position.set(
+      equalizerTransform.position.set(
         column * (blockSize + blockGap),
         row * (blockSize + blockGap),
         0,
       )
-      transform.scale.setScalar(isVisible ? blockSize : 0.0001)
-      transform.updateMatrix()
-      equalizerMesh.setMatrixAt(instanceIndex, transform.matrix)
+      equalizerTransform.scale.setScalar(isVisible ? blockSize : 0.0001)
+      equalizerTransform.updateMatrix()
+      equalizerMesh.setMatrixAt(instanceIndex, equalizerTransform.matrix)
     }
   }
 
-  equalizerMesh.instanceMatrix.needsUpdate = true
+  if (matrixChanged) {
+    equalizerMesh.instanceMatrix.needsUpdate = true
+  }
+
+  return matrixChanged
 }
 
 /**
- * 更新频谱并渲染场景，静态像素形状不参与动画计算。
+ * 仅在频谱变化或场景强制刷新时提交 WebGL 帧。
  */
-function renderScene() {
+function renderScene(forceRender = false) {
   if (!renderer || !scene || !camera) {
     return
   }
 
   // 当前秒数只作为右下角频谱的低频时间源。
   const elapsed = performance.now() / 1000
-  updateEqualizer(elapsed)
+  // 频谱矩阵是否在当前时间片发生实际变化。
+  const equalizerChanged = updateEqualizer(elapsed)
+
+  if (!forceRender && !equalizerChanged) {
+    return
+  }
+
   renderer.render(scene, camera)
 }
 
@@ -356,11 +431,14 @@ function resizeScene() {
   camera.aspect = width / height
   camera.updateProjectionMatrix()
   layoutScene(width, height)
-  renderScene()
+
+  if (sceneVisible) {
+    renderScene(true)
+  }
 }
 
 /**
- * 根据页面可见性和减少动态效果偏好启停低频频谱。
+ * 根据视口、标签页可见性和减少动态效果偏好启停频谱。
  */
 function syncAnimationState() {
   if (equalizerTimer !== undefined) {
@@ -368,14 +446,33 @@ function syncAnimationState() {
     equalizerTimer = undefined
   }
 
-  renderScene()
+  if (sceneVisible) {
+    renderScene(true)
+  }
 
-  // 当前是否允许频谱继续按低频时间步更新。
-  const shouldAnimate = !document.hidden && !reducedMotionQuery?.matches
+  // 只有首屏真实可见且允许动态效果时才保持低频更新。
+  const shouldAnimate = sceneVisible
+    && !document.hidden
+    && !reducedMotionQuery?.matches
 
   if (shouldAnimate) {
     equalizerTimer = window.setInterval(renderScene, EQUALIZER_INTERVAL)
   }
+}
+
+/**
+ * 响应首屏画布进出视口，避免离屏时继续提交 WebGL 帧。
+ */
+function handleSceneVisibility(entries: IntersectionObserverEntry[]) {
+  // 单一画布观察器的首个条目表示当前首屏可见状态。
+  const entry = entries[0]
+
+  if (!entry || sceneVisible === entry.isIntersecting) {
+    return
+  }
+
+  sceneVisible = entry.isIntersecting
+  syncAnimationState()
 }
 
 /**
@@ -420,16 +517,19 @@ function mountScene() {
   camera = nextCamera
   renderer = nextRenderer
 
-  // 创建回调把每个预定义图案加入同一静态背景场景。
-  PIXEL_SHAPES.forEach((definition) => {
-    nextScene.add(createPixelShape(definition))
-  })
+  // 全部静态像素图案合并后只向场景添加一个实例化网格。
+  nextScene.add(createPixelShapes())
   nextScene.add(createEqualizer())
 
   // 只监听首屏容器本身，避免无关窗口事件触发重复布局。
   const nextResizeObserver = new ResizeObserver(resizeScene)
   nextResizeObserver.observe(canvasRef.value)
   resizeObserver = nextResizeObserver
+
+  // 首屏画布离开视口后停止频谱更新和 WebGL 帧提交。
+  const nextSceneVisibilityObserver = new IntersectionObserver(handleSceneVisibility)
+  nextSceneVisibilityObserver.observe(canvasRef.value)
+  sceneVisibilityObserver = nextSceneVisibilityObserver
 
   // 系统减少动态效果媒体查询在组件存活期间保持复用。
   const nextReducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -451,6 +551,7 @@ function unmountScene() {
   }
 
   resizeObserver?.disconnect()
+  sceneVisibilityObserver?.disconnect()
   reducedMotionQuery?.removeEventListener('change', handleReducedMotionChange)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
 
@@ -470,10 +571,14 @@ function unmountScene() {
 
   renderer?.dispose()
   renderer?.forceContextLoss()
-  decorationGroups.length = 0
+  decorationMesh = undefined
   equalizerMesh = undefined
   equalizerGroup = undefined
+  equalizerHeights.fill(-1)
+  lastEqualizerSample = -1
   resizeObserver = undefined
+  sceneVisibilityObserver = undefined
+  sceneVisible = true
   reducedMotionQuery = undefined
   renderer = undefined
   camera = undefined
