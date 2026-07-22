@@ -18,7 +18,7 @@ const props = defineProps<{
   /**
    * 按行保存的字符矩阵；点号表示透明格，其他字符作为调色板键。
    */
-  pattern: string[]
+  pattern: readonly string[]
   /**
    * 把图案字符映射为 CSS 填充颜色的调色板。
    */

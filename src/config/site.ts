@@ -25,6 +25,10 @@ export interface NavItem {
    */
   activeColor: string
   /**
+   * 指针悬停和键盘聚焦时使用的同主题深色。
+   */
+  hoverColor: string
+  /**
    * 标记是否交由浏览器新窗口打开；省略时按站内锚点处理。
    */
   external?: boolean
@@ -123,6 +127,7 @@ export const navItems: NavItem[] = [
     href: '#home',
     iconPattern: navIconPatterns.home,
     activeColor: '#e85c68',
+    hoverColor: '#c83d4b',
   },
   {
     id: 'project',
@@ -130,6 +135,7 @@ export const navItems: NavItem[] = [
     href: '#project',
     iconPattern: navIconPatterns.project,
     activeColor: '#e8944a',
+    hoverColor: '#c66f2f',
   },
   {
     id: 'tool',
@@ -137,6 +143,7 @@ export const navItems: NavItem[] = [
     href: '#tool',
     iconPattern: navIconPatterns.tool,
     activeColor: '#d8b33f',
+    hoverColor: '#aa861f',
   },
   {
     id: 'blog',
@@ -144,20 +151,23 @@ export const navItems: NavItem[] = [
     href: '#blog',
     iconPattern: navIconPatterns.blog,
     activeColor: '#4aa875',
+    hoverColor: '#2f8257',
   },
   {
     id: 'about',
     label: 'ABOUT',
     href: '#about',
     iconPattern: navIconPatterns.about,
-    activeColor: '#38a8b4',
+    activeColor: '#9a69d8',
+    hoverColor: '#7143aa',
   },
   {
     id: 'github',
     label: 'GITHUB',
     href: githubUrl,
     iconPattern: navIconPatterns.github,
-    activeColor: '#8a6fd1',
+    activeColor: '#4b515b',
+    hoverColor: '#24292f',
     external: true,
   },
 ]

@@ -1,6 +1,12 @@
 <template>
   <section id="home" class="hero" aria-labelledby="hero-title">
-    <HomeThreeBackground />
+    <HomeThreeBackground ref="backgroundRef" />
+
+    <div class="hero-signature intro-piece" aria-hidden="true">
+      <PixelPattern :pattern="signaturePattern" :palette="signaturePalette" />
+      <span>// AMMONIA</span>
+      <strong>{ NH3 }</strong>
+    </div>
 
     <div class="hero-copy intro-piece">
       <p class="hero-copy__eyebrow">CREATIVE DEVELOPER / 2026</p>
@@ -16,7 +22,7 @@
       <a class="pixel-link" href="#project" @click="emit('navigate', $event)">探索更多</a>
     </div>
 
-    <PixelMolecule />
+    <PixelMolecule @transition-progress="syncMoleculeField" />
 
     <div class="code-note intro-piece" aria-label="代码简介">
       <span class="code-note__brace">{</span>
@@ -49,22 +55,40 @@
 </template>
 
 <script setup lang="ts">
-import { defineAsyncComponent } from 'vue'
+import { defineAsyncComponent, ref } from 'vue'
 import { palettes, patterns } from '../../../config/site'
 import { PixelPattern, PixelText } from '../../base/pixel'
 import PixelMolecule from './PixelMolecule.vue'
 
 /**
- * 异步加载首屏 Three.js 背景，避免它阻塞主要内容脚本解析。
+ * 异步加载 WebGL 像素背景，避免 Three.js 阻塞首屏正文脚本解析。
  */
 function loadHomeThreeBackground() {
   return import('./HomeThreeBackground.vue')
 }
 
-// Three.js 背景使用独立异步代码块，首屏真实内容可以先完成初始化。
+/**
+ * 描述 WebGL 背景向 Hero 暴露的滚动同步能力。
+ */
+interface HomeThreeBackgroundExpose {
+  // 主分子进度用于驱动引力节点脱离和碰撞反馈。
+  syncAttraction: (progress: number) => void
+}
+
+// Three.js 背景使用独立异步代码块加载。
 const HomeThreeBackground = defineAsyncComponent(loadHomeThreeBackground)
+
+// 从顶部导航移入首屏的装饰信号使用紧凑十字像素图案。
+const signaturePattern = ['..1..', '.111.', '11111', '.111.', '..1..']
+
+// 首屏签名信号沿用淡蓝色，避免与主标题争夺层级。
+const signaturePalette = { '1': '#8fc5f3' }
+
 // 终端装饰框的四条像素虚线边。
 const terminalEdges = ['terminal__edge--top', 'terminal__edge--right', 'terminal__edge--bottom', 'terminal__edge--left']
+
+// WebGL 背景实例接收主分子的滚动进度并驱动引力场反馈。
+const backgroundRef = ref<HomeThreeBackgroundExpose | null>(null)
 
 // 首屏只把主行动链接交给首页页面级滚动控制器。
 const emit = defineEmits<{
@@ -73,6 +97,13 @@ const emit = defineEmits<{
    */
   navigate: [event: MouseEvent]
 }>()
+
+/**
+ * 把主分子的滚动过渡进度同步给 WebGL 引力场。
+ */
+function syncMoleculeField(progress: number) {
+  backgroundRef.value?.syncAttraction(progress)
+}
 </script>
 
 <style scoped>
@@ -90,6 +121,30 @@ const emit = defineEmits<{
   top: 29%;
   left: 7.5%;
   width: 35%;
+}
+
+.hero-signature {
+  position: absolute;
+  z-index: 3;
+  top: 14%;
+  left: 7.5%;
+  display: grid;
+  grid-template-columns: 26px auto;
+  gap: 4px 12px;
+  align-items: center;
+  color: #a7b5dc;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.hero-signature :deep(.pixel-pattern) {
+  width: 24px;
+  grid-row: 1 / 3;
+}
+
+.hero-signature strong {
+  font-weight: 800;
 }
 
 .hero-copy__eyebrow {
@@ -210,6 +265,7 @@ const emit = defineEmits<{
 
 @media (max-width: 820px) {
   .hero { min-height: 980px; }
+  .hero-signature { top: 28px; left: 7%; }
   .hero-copy { top: 250px; left: 7%; width: 57%; }
   .hero-copy h1 { font-size: clamp(54px, 13vw, 82px); }
   .hero-copy__eyebrow { display: none; }
@@ -221,6 +277,7 @@ const emit = defineEmits<{
 
 @media (max-width: 560px) {
   .hero { min-height: 900px; }
+  .hero-signature { top: 22px; left: 8%; font-size: 10px; }
   .hero-copy { top: 235px; left: 8%; width: 80%; }
   .hero-copy h1 { font-size: 58px; }
   .hero-copy__line { font-size: 13px; }

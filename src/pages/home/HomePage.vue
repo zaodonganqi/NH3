@@ -74,7 +74,7 @@ onMounted(async () => {
     sections.forEach((section) => {
       // 当前章节参与滚动入场的直接视觉节点。
       const targets = section.querySelectorAll(
-        '.project-heading, .project-window, .tool-heading, .tool-entry, .blog-heading, .blog-window, .about-heading, .about-space',
+        '.project-heading, .project-window, .tool-heading, .tool-entry, .blog-heading, .blog-row, .about-heading, .about-entry',
       )
 
       gsap.fromTo(
@@ -175,7 +175,7 @@ function createScrollCueFade() {
 }
 
 /**
- * 使用 GSAP 滚动到首页锚点，并立即同步 Header 选中项。
+ * 使用连续 GSAP 缓动滚动到首页锚点，并立即同步 Header 选中项。
  */
 function scrollToSection(event: MouseEvent, sectionId?: string) {
   // 当前触发导航的锚点提供目标 hash。
@@ -200,10 +200,12 @@ function scrollToSection(event: MouseEvent, sectionId?: string) {
     activeSection.value = resolvedSectionId
   }
 
+  gsap.killTweensOf(window)
   gsap.to(window, {
     duration: 0.72,
     scrollTo: { y: target, offsetY: 0 },
-    ease: 'steps(12)',
+    ease: 'power3.inOut',
+    overwrite: true,
   })
 }
 </script>

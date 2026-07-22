@@ -1,28 +1,31 @@
 <template>
   <div ref="rootRef" class="molecule" aria-label="NH3 分子像素图形">
-    <div ref="flightRef" class="molecule__flight">
-      <div ref="stageRef" class="molecule__stage">
-        <div v-for="bond in bonds" :key="bond" class="bond" :class="bond">
-          <i
-            v-for="index in 9"
-            :key="index"
-            :style="{ '--offset': `${(index - 1) * 3.05}%` }"
-          ></i>
+    <div ref="positionRef" class="molecule__position">
+      <div ref="flightRef" class="molecule__flight">
+        <div class="molecule__idle">
+          <div ref="stageRef" class="molecule__stage">
+            <div v-for="bond in bonds" :key="bond" class="bond" :class="bond">
+              <i
+                v-for="index in 9"
+                :key="index"
+                :style="{ '--offset': `${(index - 1) * 3.05}%` }"
+              ></i>
+            </div>
+
+            <PixelAtom class="atom atom--n" element="N" />
+            <PixelAtom class="atom atom--h atom--top" element="H" />
+            <PixelAtom class="atom atom--h atom--left" element="H" />
+            <PixelAtom class="atom atom--h atom--bottom" element="H" />
+          </div>
+
+          <div ref="coreRef" class="molecule__transition-core" aria-hidden="true">
+            <PixelPattern
+              :pattern="transitionCorePattern"
+              :palette="transitionPalette"
+            />
+          </div>
         </div>
-
-        <PixelAtom class="atom atom--n" element="N" />
-        <PixelAtom class="atom atom--h atom--top" element="H" />
-        <PixelAtom class="atom atom--h atom--left" element="H" />
-        <PixelAtom class="atom atom--h atom--bottom" element="H" />
       </div>
-
-      <div ref="coreRef" class="molecule__transition-core" aria-hidden="true">
-        <PixelPattern
-          :pattern="transitionCorePattern"
-          :palette="transitionPalette"
-        />
-      </div>
-
     </div>
 
     <Teleport to="body">
@@ -59,60 +62,42 @@ import PixelAtom from './PixelAtom.vue'
 gsap.registerPlugin(Flip, MotionPathPlugin, ScrollToPlugin, ScrollTrigger)
 
 /**
- * 保存弧形像素轨迹在视口中的控制点和当前滚动进度。
+ * 保存分子真实经过的单个屏幕坐标采样点。
  */
-interface PixelTrailState {
-  /**
-   * Project 进入自身 1/10 到 1/3 时从 0 到 1 的归一化进度。
-   */
-  progress: number
-  /**
-   * 轨迹起点的视口横坐标。
-   */
-  startX: number
-  /**
-   * 轨迹起点的视口纵坐标。
-   */
-  startY: number
-  /**
-   * 二次贝塞尔曲线控制点的视口横坐标。
-   */
-  controlX: number
-  /**
-   * 二次贝塞尔曲线控制点的视口纵坐标。
-   */
-  controlY: number
-  /**
-   * 轨迹终点的视口横坐标。
-   */
-  endX: number
-  /**
-   * 轨迹终点的视口纵坐标。
-   */
-  endY: number
+interface PixelTrailPoint {
+  // 采样点在视口中的横坐标。
+  x: number
+  // 采样点在视口中的纵坐标。
+  y: number
 }
 
 // 三组真实 DOM 像素键分别连接氮原子与三个氢原子。
 const bonds = ['bond--top', 'bond--left', 'bond--bottom']
 
-// 返回顶部状态使用 17×17 像素圆环，并在中央绘制向上的 ^。
+// 分子组件把统一滚动进度交给首屏伴生元素，不在父组件创建响应式动画状态。
+const emit = defineEmits<{
+  // 主分子从原位到返回按钮的统一过渡进度。
+  transitionProgress: [progress: number]
+}>()
+
+// 返回顶部状态使用 17×17 像素圆环、白色内底，并在中央绘制向上的 ^。
 const returnTopPattern = [
   '......11111......',
-  '....11.....11....',
-  '...1.........1...',
-  '..1...........1..',
-  '.1.............1.',
-  '.1.............1.',
-  '1.......2.......1',
-  '1......2.2......1',
-  '1.....2...2.....1',
-  '1....2.....2....1',
-  '1...............1',
-  '.1.............1.',
-  '.1.............1.',
-  '..1...........1..',
-  '...1.........1...',
-  '....11.....11....',
+  '....113333311....',
+  '...13333333331...',
+  '..1333333333331..',
+  '.133333333333331.',
+  '.133333333333331.',
+  '13333333233333331',
+  '13333332323333331',
+  '13333323332333331',
+  '13333233333233331',
+  '13333333333333331',
+  '.133333333333331.',
+  '.133333333333331.',
+  '..1333333333331..',
+  '...13333333331...',
+  '....113333311....',
   '......11111......',
 ]
 
@@ -129,10 +114,11 @@ const transitionCorePattern = [
   '....1....',
 ]
 
-// 返回按钮使用淡蓝圆环和更深的蓝色箭头。
+// 返回按钮使用淡蓝圆环、深蓝箭头和白色内部底面。
 const returnTopPalette = {
   '1': '#91a9d9',
   '2': '#496cb8',
+  '3': '#ffffff',
 }
 
 // 过渡核心使用蓝、青两色形成短暂的能量收束效果。
@@ -141,14 +127,14 @@ const transitionPalette = {
   '2': '#63c7c3',
 }
 
-// 弧形轨迹中的像素方块按蓝、青、粉顺序循环。
-const trailColors = ['#7893db', '#63c7c3', '#e79bc7']
+// 拖尾使用更高对比度的蓝、青、粉，避免在白色背景中被忽略。
+const trailColors = ['#3158df', '#00a99d', '#d93a8b']
 
-// 弧形轨迹固定使用八个方形像素，控制瞬时绘制成本。
-const TRAIL_PIXEL_COUNT = 8
+// 拖尾保留十八个真实位置采样点，形成更长的像素路径。
+const TRAIL_PIXEL_COUNT = 18
 
 // 轨迹网格以视口宽度的固定分母计算，不依赖固定像素边长。
-const TRAIL_GRID_DIVISOR = 360
+const TRAIL_GRID_DIVISOR = 250
 
 // 返回顶部图标使用较短视口边的 8.5% 作为响应式边长。
 const COMPACT_SIZE_RATIO = 0.085
@@ -164,6 +150,9 @@ const TRANSITION_SMOOTH_DURATION = 0.8
 
 // 分子根节点在首页原位置和右下角固定状态之间执行 Flip 过渡。
 const rootRef = ref<HTMLElement | null>(null)
+
+// 坐标校正层独立承担滚动差值，避免与根节点的 Flip transform 冲突。
+const positionRef = ref<HTMLElement | null>(null)
 
 // 内层飞行容器叠加弧线偏移，不与根节点的 Flip transform 冲突。
 const flightRef = ref<HTMLElement | null>(null)
@@ -189,22 +178,29 @@ let flightTimeline: gsap.core.Timeline | undefined
 // 进度缓冲补间让移动、收束、核心和按钮始终同步追随滚动目标。
 let progressTween: gsap.core.Tween | undefined
 
+// 返回原位阶段保持飞行状态，避免主时间线归零时短暂恢复空闲动画。
+let isReturningToOrigin = false
+
+// 进入过渡区间时的纵向滚动位置用于校正 fixed 状态和文档坐标的差值。
+let flightStartScrollY = 0
+
 // Project 滚动触发器把进入 1/10 到 1/3 的区间映射到完整过渡。
 let moleculeScrollTrigger: ScrollTrigger | undefined
 
 // 减少动态效果偏好关闭弧形尾迹，但仍保留返回顶部功能。
 let reducedMotionQuery: MediaQueryList | undefined
 
-// 复用的轨迹状态避免滚动过程中创建临时更新对象。
-const trailState: PixelTrailState = {
-  progress: 0,
-  startX: 0,
-  startY: 0,
-  controlX: 0,
-  controlY: 0,
-  endX: 0,
-  endY: 0,
-}
+// 当前分子过渡进度控制拖尾整体显隐区间。
+let trailProgress = 0
+
+// 最近的真实屏幕中心按新到旧保存，用于直接绘制拖尾。
+const trailPoints: PixelTrailPoint[] = []
+
+// 上一帧过渡进度用于检测运动方向反转并清除旧方向轨迹。
+let previousTrailProgress = 0
+
+// 当前拖尾采样方向避免前进与返回路径在同一帧混合。
+let trailDirection = 0
 
 // 组件挂载后建立第二个 section 进入 1/10 到 1/3 的滚动控制器。
 onMounted(mountMoleculeTransition)
@@ -275,6 +271,8 @@ function prepareMoleculeFlight() {
     return
   }
 
+  isReturningToOrigin = false
+
   // 根节点提供原始布局矩形和右下角固定目标。
   const root = rootRef.value
   // 内层飞行容器提供不干扰 Flip 的弧线偏移层。
@@ -290,6 +288,7 @@ function prepareMoleculeFlight() {
     return
   }
 
+  flightStartScrollY = window.scrollY
   // 原始布局状态必须在应用固定定位之前捕获。
   const flipState = Flip.getState(root)
   // 过渡起点矩形对应 Project 刚进入自身高度 1/10 的时刻。
@@ -316,9 +315,8 @@ function prepareMoleculeFlight() {
   root.style.setProperty('--molecule-compact-scale', `${compactScale}`)
   root.classList.add('molecule--compact')
 
-  // 应用固定目标后的可见矩形提供像素弧线的真实终点。
-  const endBounds = root.getBoundingClientRect()
-  configureTrailPath(startBounds, endBounds)
+  // 新飞行开始前清除上一次方向留下的真实位置采样。
+  resetTrailHistory()
 
   // Flip 时间线同时承载根节点移动和内部形态变化，统一映射滚动进度。
   const timeline = Flip.from(flipState, {
@@ -406,6 +404,10 @@ function prepareMoleculeFlight() {
  * 让统一时间线平滑追随滚动目标，避免短触发区间造成形态跳变。
  */
 function handleMoleculeScroll(trigger: ScrollTrigger) {
+  if (trigger.progress > 0.001) {
+    isReturningToOrigin = false
+  }
+
   if (trigger.progress > 0 && !flightTimeline) {
     prepareMoleculeFlight()
   }
@@ -447,6 +449,7 @@ function finishMoleculeReturn() {
     return
   }
 
+  isReturningToOrigin = true
   progressTween?.kill()
   progressTween = gsap.to(flightTimeline, {
     duration: 0.28,
@@ -464,34 +467,56 @@ function finishMoleculeReturn() {
 function syncMoleculeTransition(progress: number) {
   // 根节点状态类决定飞行期间层级、CSS 动画和最终按钮交互。
   const root = rootRef.value
+  // 坐标校正层保持视觉位置与当前文档滚动位置一致。
+  const position = positionRef.value
 
-  if (!root) {
+  if (!root || !position) {
     return
   }
 
-  root.classList.toggle('molecule--in-flight', progress > 0.001)
+  syncMoleculeScrollCompensation(position, progress)
+  emit('transitionProgress', progress)
+  root.classList.toggle(
+    'molecule--in-flight',
+    progress > 0.001 || isReturningToOrigin,
+  )
   syncReturnButton(progress)
-  trailState.progress = progress
+  trailProgress = progress
 
   if (reducedMotionQuery?.matches || progress <= 0.001 || progress >= 0.999) {
     clearTrailCanvas()
     return
   }
 
+  sampleTrailPoint(progress)
   ensureTrailCanvas()
   drawPixelTrail()
+}
+
+/**
+ * 按剩余过渡进度补偿滚动差，使 fixed 根节点始终对应当前文档坐标。
+ */
+function syncMoleculeScrollCompensation(position: HTMLElement, progress: number) {
+  // 越接近原始形态越完整地应用滚动补偿，紧凑完成态保持固定目标位置。
+  const compensationWeight = 1 - gsap.utils.clamp(0, 1, progress)
+  // 当前滚动位置相对进入过渡区间时产生的视口坐标差。
+  const scrollDelta = flightStartScrollY - window.scrollY
+  // 独立校正层不占用 Flip 管理的根节点 transform。
+  const compensationY = scrollDelta * compensationWeight
+
+  gsap.set(position, { y: compensationY })
 }
 
 /**
  * 在最后 10% 进度中让圆环按钮跟随分子实时位置完成视觉交接。
  */
 function syncReturnButton(progress: number) {
-  // 飞行中的分子根节点提供当前视口位置和实时缩放尺寸。
-  const root = rootRef.value
+  // 坐标校正层提供包含滚动差值后的真实视觉位置。
+  const position = positionRef.value
   // Teleport 按钮脱离 Hero 层级，但位置始终跟随分子当前包围盒。
   const button = returnButtonRef.value
 
-  if (!root || !button) {
+  if (!position || !button) {
     return
   }
 
@@ -515,7 +540,7 @@ function syncReturnButton(progress: number) {
   }
 
   // 当前分子包围盒已经包含 Flip 移动和整体缩放结果。
-  const bounds = root.getBoundingClientRect()
+  const bounds = position.getBoundingClientRect()
   // 圆环自身轻微展开，避免在交接开始点突然出现完整尺寸。
   const buttonScale = 0.78 + morphProgress * 0.22
 
@@ -532,13 +557,15 @@ function syncReturnButton(progress: number) {
 }
 
 /**
- * 离开过渡区间上边界后恢复正常文档定位和分子空闲动画。
+ * 离开过渡区间上边界后直接恢复与当前文档坐标一致的正常定位。
  */
 function releaseMoleculeFlight() {
   progressTween?.kill()
   progressTween = undefined
   // 根节点需要移除固定目标类和 Flip 留下的内联布局属性。
   const root = rootRef.value
+  // 坐标校正层需要清除滚动差值写入的 transform。
+  const position = positionRef.value
   // 内层飞行容器需要清除 MotionPath 写入的 transform。
   const flight = flightRef.value
   // 完整分子舞台需要清除坍缩过程写入的状态。
@@ -548,8 +575,16 @@ function releaseMoleculeFlight() {
   // 返回按钮需要恢复默认不可交互状态。
   const button = returnButtonRef.value
 
-  flightTimeline?.progress(0).kill()
+  flightTimeline?.progress(0)
+
+  if (position) {
+    syncMoleculeScrollCompensation(position, 0)
+  }
+
+  flightTimeline?.kill()
   flightTimeline = undefined
+  isReturningToOrigin = false
+  flightStartScrollY = 0
 
   if (root) {
     Flip.killFlipsOf(root)
@@ -563,6 +598,10 @@ function releaseMoleculeFlight() {
     gsap.set(root, {
       clearProps: 'bottom,height,left,position,right,top,transform,width,zIndex',
     })
+  }
+
+  if (position) {
+    gsap.set(position, { clearProps: 'transform' })
   }
 
   if (flight) {
@@ -585,21 +624,63 @@ function releaseMoleculeFlight() {
   }
 
   clearTrailCanvas()
+  emit('transitionProgress', 0)
 }
 
 /**
- * 根据过渡起点和终点建立与内层弧线偏移一致的二次贝塞尔路径。
+ * 清除拖尾位置、进度和运动方向状态。
  */
-function configureTrailPath(startBounds: DOMRect, endBounds: DOMRect) {
-  trailState.progress = 0
-  trailState.startX = startBounds.left + startBounds.width / 2
-  trailState.startY = startBounds.top + startBounds.height / 2
-  trailState.endX = endBounds.left + endBounds.width / 2
-  trailState.endY = endBounds.top + endBounds.height / 2
-  trailState.controlX = (trailState.startX + trailState.endX) / 2
-    - startBounds.width * 0.16
-  trailState.controlY = Math.min(trailState.startY, trailState.endY)
-    - Math.min(startBounds.height * 0.28, window.innerHeight * 0.18)
+function resetTrailHistory() {
+  trailPoints.length = 0
+  trailProgress = 0
+  previousTrailProgress = 0
+  trailDirection = 0
+}
+
+/**
+ * 采样分子飞行层的真实屏幕中心，并在方向反转时重新开始拖尾。
+ */
+function sampleTrailPoint(progress: number) {
+  // 飞行层的包围盒包含 Flip、MotionPath、缩放和滚动补偿的最终结果。
+  const flight = flightRef.value
+
+  if (!flight) {
+    return
+  }
+
+  // 当前进度变化方向用于区分前进和返回轨迹。
+  const nextDirection = Math.sign(progress - previousTrailProgress)
+
+  if (nextDirection !== 0 && trailDirection !== 0 && nextDirection !== trailDirection) {
+    trailPoints.length = 0
+  }
+
+  if (nextDirection !== 0) {
+    trailDirection = nextDirection
+  }
+
+  previousTrailProgress = progress
+
+  // 真实包围盒中心就是当前帧拖尾应连接的位置。
+  const bounds = flight.getBoundingClientRect()
+  // 当前帧分子中心横坐标。
+  const x = bounds.left + bounds.width / 2
+  // 当前帧分子中心纵坐标。
+  const y = bounds.top + bounds.height / 2
+  // 最新采样点用于过滤相邻帧重复坐标。
+  const latestPoint = trailPoints[0]
+  // 采样间距随视口变化，但最低保持两个 CSS 像素。
+  const minimumDistance = Math.max(2, window.innerWidth / TRAIL_GRID_DIVISOR * 0.6)
+
+  if (latestPoint && Math.hypot(x - latestPoint.x, y - latestPoint.y) < minimumDistance) {
+    return
+  }
+
+  trailPoints.unshift({ x, y })
+
+  if (trailPoints.length > TRAIL_PIXEL_COUNT + 1) {
+    trailPoints.length = TRAIL_PIXEL_COUNT + 1
+  }
 }
 
 /**
@@ -643,46 +724,37 @@ function drawPixelTrail() {
   const scaleX = canvas.width / window.innerWidth
   // Canvas 物理高度与视口高度的真实缩放比。
   const scaleY = canvas.height / window.innerHeight
-  // 整体轨迹透明度在滚动区间中段最强，两端自然消失。
-  const trailOpacity = Math.sin(Math.PI * trailState.progress)
+  // 拖尾在过渡大部分区间保持高可见度，只在两端快速淡出。
+  const trailOpacity = Math.min(
+    1,
+    trailProgress * 7,
+    (1 - trailProgress) * 10,
+  )
 
   context.setTransform(scaleX, 0, 0, scaleY, 0, 0)
   context.clearRect(0, 0, window.innerWidth, window.innerHeight)
   context.imageSmoothingEnabled = false
 
-  // 像素索引越靠后，沿曲线落后越多并逐渐减弱。
-  for (let index = 0; index < TRAIL_PIXEL_COUNT; index += 1) {
-    // 当前尾迹像素相对主进度的延迟位置。
-    const progress = gsap.utils.clamp(
-      0,
-      1,
-      trailState.progress - index * 0.052,
-    )
-
-    if (progress <= 0) {
-      continue
+  // 真实位置采样从最新到最旧绘制，并沿时间逐渐缩小和减弱。
+  trailPoints.forEach((point, index) => {
+    if (index >= TRAIL_PIXEL_COUNT) {
+      return
     }
 
-    // 二次贝塞尔计算使用的反向权重。
-    const inverseProgress = 1 - progress
-    // 当前像素沿弧线计算出的横坐标。
-    const x = inverseProgress * inverseProgress * trailState.startX
-      + 2 * inverseProgress * progress * trailState.controlX
-      + progress * progress * trailState.endX
-    // 当前像素沿弧线计算出的纵坐标。
-    const y = inverseProgress * inverseProgress * trailState.startY
-      + 2 * inverseProgress * progress * trailState.controlY
-      + progress * progress * trailState.endY
-    // 当前视口宽度换算出的响应式轨迹网格边长。
+    // 当前视口宽度换算出的响应式拖尾像素边长。
     const trailGridSize = window.innerWidth / TRAIL_GRID_DIVISOR
     // 横坐标吸附到响应式像素网格。
-    const snappedX = Math.round(x / trailGridSize) * trailGridSize
+    const snappedX = Math.round(point.x / trailGridSize) * trailGridSize
     // 纵坐标吸附到响应式像素网格。
-    const snappedY = Math.round(y / trailGridSize) * trailGridSize
-    // 前三个轨迹像素使用两格方块，其余使用一格方块。
-    const pixelSize = index < 3 ? trailGridSize * 2 : trailGridSize
+    const snappedY = Math.round(point.y / trailGridSize) * trailGridSize
+    // 拖尾前端使用更大的像素块，中后段逐级收窄。
+    const pixelSize = index < 4
+      ? trailGridSize * 3.2
+      : index < 10
+        ? trailGridSize * 2.1
+        : trailGridSize * 1.35
 
-    context.globalAlpha = trailOpacity * (1 - index / TRAIL_PIXEL_COUNT) * 0.72
+    context.globalAlpha = trailOpacity * (1 - index / TRAIL_PIXEL_COUNT) * 0.98
     context.fillStyle = trailColors[index % trailColors.length]
     context.fillRect(
       snappedX - pixelSize / 2,
@@ -690,7 +762,7 @@ function drawPixelTrail() {
       pixelSize,
       pixelSize,
     )
-  }
+  })
 
   context.globalAlpha = 1
 }
@@ -701,6 +773,8 @@ function drawPixelTrail() {
 function clearTrailCanvas() {
   // 尾迹 Canvas 可能在组件完成挂载前尚不存在。
   const canvas = trailCanvasRef.value
+
+  resetTrailHistory()
 
   if (!canvas || (canvas.width === 1 && canvas.height === 1)) {
     return
@@ -725,16 +799,19 @@ function scrollToTop() {
 
 <style scoped>
 .molecule {
+  --molecule-size: clamp(450px, 41vw, 820px);
   position: absolute;
   z-index: 4;
-  top: 27%;
-  left: 42%;
-  width: clamp(410px, 38vw, 610px);
+  top: 24%;
+  left: calc(58.5% - var(--molecule-size) / 2);
+  width: var(--molecule-size);
   aspect-ratio: 1 / 1;
   filter: drop-shadow(0 18px 28px rgb(91 112 188 / 9%));
 }
 
+.molecule__position,
 .molecule__flight,
+.molecule__idle,
 .molecule__stage {
   position: absolute;
   inset: 0;
@@ -744,8 +821,13 @@ function scrollToTop() {
   transform-origin: center;
 }
 
-.molecule__stage {
+.molecule__idle {
   animation: molecule-idle 8.5s ease-in-out infinite;
+  transform-origin: 50% 52%;
+  will-change: transform;
+}
+
+.molecule__stage {
   transform-origin: 50% 52%;
   will-change: transform;
 }
@@ -764,8 +846,8 @@ function scrollToTop() {
   filter: none;
 }
 
-.molecule--in-flight .molecule__stage {
-  animation: none;
+.molecule--in-flight .molecule__idle {
+  animation-play-state: paused;
 }
 
 .molecule__transition-core {
@@ -792,7 +874,7 @@ function scrollToTop() {
   visibility: hidden;
   place-items: center;
   color: #496cb8;
-  background: #ffffff;
+  background: transparent;
   border: 0;
   cursor: pointer;
   opacity: 0;
@@ -836,7 +918,7 @@ function scrollToTop() {
 }
 
 .atom--left {
-  top: 57%;
+  top: 66%;
   left: 0;
 }
 
@@ -903,29 +985,29 @@ function scrollToTop() {
 
 @media (max-width: 1100px) {
   .molecule {
-    left: 40%;
-    width: 46vw;
+    left: 38%;
+    width: 50vw;
   }
 }
 
 @media (max-width: 820px) {
   .molecule {
-    top: 455px;
-    left: 20%;
-    width: min(70vw, 500px);
+    top: 430px;
+    left: 16%;
+    width: min(76vw, 520px);
   }
 }
 
 @media (max-width: 560px) {
   .molecule {
-    top: 445px;
-    left: 9%;
-    width: 82vw;
+    top: 420px;
+    left: 7%;
+    width: 86vw;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .molecule__stage,
+  .molecule__idle,
   :global(.molecule-return-overlay) {
     animation: none;
     transition: none;
