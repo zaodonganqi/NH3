@@ -4,12 +4,10 @@
 
     <div class="hero-signature intro-piece" aria-hidden="true">
       <PixelPattern :pattern="signaturePattern" :palette="signaturePalette" />
-      <span>// AMMONIA</span>
-      <strong>{ NH3 }</strong>
     </div>
 
     <div class="hero-copy intro-piece">
-      <p class="hero-copy__eyebrow">CREATIVE DEVELOPER / 2026</p>
+      <p class="hero-copy__eyebrow">SOFTWARE ENGINEER / EXPLORER</p>
       <h1 id="hero-title">
         <PixelText
           class="hero-title"
@@ -18,21 +16,28 @@
           color="linear-gradient(135deg, #3557d5 0%, #159f9a 58%, #d65a9e 100%)"
         />
       </h1>
-      <p class="hero-copy__line"><span aria-hidden="true">♥</span> 用代码探索无限可能</p>
+      <p class="hero-copy__line"><span aria-hidden="true">♥</span> Learn. Create. Repeat.</p>
       <a class="pixel-link" href="#project" @click="emit('navigate', $event)">探索更多</a>
     </div>
 
     <PixelMolecule @transition-progress="syncMoleculeField" />
 
     <div class="code-note intro-piece" aria-label="代码简介">
-      <span class="code-note__brace">{</span>
+      <span class="code-note__lines" aria-hidden="true">
+        <span>1</span>
+        <span>2</span>
+        <span>3</span>
+        <span>4</span>
+        <span>5</span>
+        <span>6</span>
+      </span>
       <code>
-        <span class="code-blue">const nh3</span> = {<br />
-        &nbsp;&nbsp;<span class="code-cyan">name</span>: "Ammonia",<br />
-        &nbsp;&nbsp;<span class="code-cyan">formula</span>: "NH3",<br />
-        &nbsp;&nbsp;<span class="code-cyan">mood</span>: "excited",<br />
-        &nbsp;&nbsp;<span class="code-cyan">energy</span>: Infinity<br />
-        }
+        <span class="code-keyword">const</span> <span class="code-name">nh3</span> <span class="code-punctuation">= {</span><br />
+        &nbsp;&nbsp;<span class="code-property">identity</span><span class="code-punctuation">:</span> <span class="code-string">"NH3"</span><span class="code-punctuation">,</span><br />
+        &nbsp;&nbsp;<span class="code-property">nature</span><span class="code-punctuation">:</span> <span class="code-string">"curious"</span><span class="code-punctuation">,</span><br />
+        &nbsp;&nbsp;<span class="code-property">passion</span><span class="code-punctuation">:</span> <span class="code-string">"building"</span><span class="code-punctuation">,</span><br />
+        &nbsp;&nbsp;<span class="code-property">energy</span><span class="code-punctuation">:</span> <span class="code-string">"unlimited"</span><br />
+        <span class="code-punctuation">}</span>
       </code>
     </div>
 
@@ -56,7 +61,7 @@
 
 <script setup lang="ts">
 import { defineAsyncComponent, ref } from 'vue'
-import { palettes, patterns } from '../../../config/site'
+import { palettes, patterns } from '@/config'
 import { PixelPattern, PixelText } from '../../base/pixel'
 import PixelMolecule from './PixelMolecule.vue'
 
@@ -180,25 +185,50 @@ function syncMoleculeField(progress: number) {
   position: absolute;
   z-index: 3;
   top: 48%;
-  right: 4.7%;
+  right: 2.5%;
   display: flex;
+  align-items: stretch;
   color: #8997cc;
   font-size: clamp(10px, 0.9vw, 14px);
   line-height: 1.9;
 }
 
-.code-note__brace {
-  margin-right: 12px;
-  color: #83d3e5;
-  font-size: 54px;
-  font-weight: 200;
-  line-height: 3;
-  transform: scaleX(0.45);
+.code-note__lines {
+  position: relative;
+  display: grid;
+  min-width: 2.5em;
+  margin-right: 0.9em;
+  padding-right: 0.8em;
+  color: #aab5cf;
+  text-align: right;
+  line-height: inherit;
+  flex: 0 0 auto;
 }
 
-.code-note code { font-family: inherit; }
-.code-blue { color: #6078ec; }
-.code-cyan { color: #58cfc0; }
+.code-note__lines::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 2px;
+  height: 100%;
+  background: repeating-linear-gradient(to bottom, #dce3f2 0 2px, transparent 2px 4px);
+  content: '';
+}
+
+.code-note__lines > span {
+  display: block;
+}
+
+.code-note code {
+  display: block;
+  font-family: inherit;
+}
+
+.code-keyword { color: #6078ec; }
+.code-name { color: #3f72c9; }
+.code-property { color: #36aaa3; }
+.code-string { color: #d96b9e; }
+.code-punctuation { color: #91a0c4; }
 
 .terminal {
   position: absolute;
@@ -232,7 +262,7 @@ function syncMoleculeField(progress: number) {
 .terminal__edge--left { left: 0; }
 .terminal__edge--right { right: 0; }
 
-.hero-cursor { position: absolute; z-index: 4; right: 38%; bottom: 12%; width: 38px; }
+.hero-cursor { position: absolute; z-index: 4; right: 38%; bottom: 12%; width: 42px; }
 
 .scroll-cue {
   position: absolute;

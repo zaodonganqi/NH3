@@ -1,7 +1,9 @@
+@import '../assets/fonts/zpix.css';
+
 :root {
   color: #5c6e8f;
   background: #ffffff;
-  font-family: "Cascadia Mono", "Microsoft YaHei", monospace;
+  font-family: "Zpix", "Cascadia Mono", "Microsoft YaHei", monospace;
   font-synthesis: none;
   text-rendering: geometricPrecision;
 }

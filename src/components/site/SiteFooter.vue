@@ -26,6 +26,7 @@
 
 .site-footer p {
   margin: 0;
+  font-family: "Cascadia Mono", "Microsoft YaHei", monospace;
   font-size: 11px;
   font-weight: 800;
 }
