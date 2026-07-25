@@ -48,8 +48,6 @@
       <PixelPattern :pattern="patterns.smile" :palette="palettes.hydrogen" />
     </div>
 
-    <PixelPattern class="hero-cursor intro-piece" :pattern="patterns.cursor" :palette="palettes.ink" />
-
     <div class="scroll-cue intro-piece" aria-hidden="true">
       <div class="scroll-cue__motion">
         <span>SCROLL DOWN</span>
@@ -76,7 +74,7 @@ function loadHomeThreeBackground() {
  * 描述 WebGL 背景向 Hero 暴露的滚动同步能力。
  */
 interface HomeThreeBackgroundExpose {
-  // 主分子进度用于驱动引力节点脱离和碰撞反馈。
+  // 主分子进度用于驱动副元素在外圈挤压和中心填充之间切换。
   syncAttraction: (progress: number) => void
 }
 
@@ -262,8 +260,6 @@ function syncMoleculeField(progress: number) {
 .terminal__edge--left { left: 0; }
 .terminal__edge--right { right: 0; }
 
-.hero-cursor { position: absolute; z-index: 4; right: 38%; bottom: 12%; width: 42px; }
-
 .scroll-cue {
   position: absolute;
   z-index: 3;
@@ -278,7 +274,7 @@ function syncMoleculeField(progress: number) {
   display: grid;
   justify-items: center;
   gap: 13px;
-  will-change: transform, opacity;
+  will-change: opacity;
 }
 
 .scroll-cue__motion--hidden {
@@ -302,7 +298,7 @@ function syncMoleculeField(progress: number) {
   .hero-copy__line { margin: 18px 0 30px; }
   .code-note { top: 720px; right: 5%; }
   .terminal { bottom: 4%; left: 5%; min-height: 108px; }
-  .scroll-cue, .hero-cursor { display: none; }
+  .scroll-cue { display: none; }
 }
 
 @media (max-width: 560px) {

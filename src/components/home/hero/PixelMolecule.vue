@@ -877,10 +877,70 @@ function scrollToTop() {
   background: transparent;
   border: 0;
   cursor: pointer;
+  isolation: isolate;
   opacity: 0;
   pointer-events: none;
   transform-origin: center;
   transition: translate 180ms ease;
+}
+
+:global(.molecule-return-overlay::before) {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  clip-path: polygon(
+    35.294% 0,
+    64.706% 0,
+    64.706% 5.882%,
+    76.471% 5.882%,
+    76.471% 11.765%,
+    82.353% 11.765%,
+    82.353% 17.647%,
+    88.235% 17.647%,
+    88.235% 23.529%,
+    94.118% 23.529%,
+    94.118% 35.294%,
+    100% 35.294%,
+    100% 64.706%,
+    94.118% 64.706%,
+    94.118% 76.471%,
+    88.235% 76.471%,
+    88.235% 82.353%,
+    82.353% 82.353%,
+    82.353% 88.235%,
+    76.471% 88.235%,
+    76.471% 94.118%,
+    64.706% 94.118%,
+    64.706% 100%,
+    35.294% 100%,
+    35.294% 94.118%,
+    23.529% 94.118%,
+    23.529% 88.235%,
+    17.647% 88.235%,
+    17.647% 82.353%,
+    11.765% 82.353%,
+    11.765% 76.471%,
+    5.882% 76.471%,
+    5.882% 64.706%,
+    0 64.706%,
+    0 35.294%,
+    5.882% 35.294%,
+    5.882% 23.529%,
+    11.765% 23.529%,
+    11.765% 17.647%,
+    17.647% 17.647%,
+    17.647% 11.765%,
+    23.529% 11.765%,
+    23.529% 5.882%,
+    35.294% 5.882%
+  );
+  background: #ffffff;
+  content: '';
+}
+
+:global(.molecule-return-overlay > .pixel-pattern) {
+  position: relative;
+  z-index: 1;
 }
 
 :global(.molecule-return-overlay--interactive) {

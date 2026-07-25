@@ -162,14 +162,13 @@ function createScrollCueFade() {
   }
 
   gsap.to(cue, {
-    autoAlpha: 0,
-    y: 24,
+    opacity: 0,
     ease: 'none',
     scrollTrigger: {
       trigger: hero,
       start: 'top top',
-      end: 'bottom 80%',
-      scrub: 0.25,
+      end: 'bottom 35%',
+      scrub: 0.6,
     },
   })
 }
