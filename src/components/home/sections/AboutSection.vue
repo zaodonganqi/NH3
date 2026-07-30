@@ -27,7 +27,6 @@ import PixelSectionHeading from './PixelSectionHeading.vue'
 <style scoped>
 .about-section {
   display: grid;
-  min-height: 760px;
   grid-template-columns: minmax(260px, 0.62fr) minmax(0, 1.38fr);
   gap: clamp(48px, 7vw, 120px);
   align-items: center;
@@ -52,7 +51,6 @@ import PixelSectionHeading from './PixelSectionHeading.vue'
 
 @media (max-width: 820px) {
   .about-section {
-    min-height: auto;
     grid-template-columns: minmax(0, 1fr);
     gap: 42px;
   }

@@ -74,7 +74,7 @@ onMounted(async () => {
     sections.forEach((section) => {
       // 当前章节参与滚动入场的直接视觉节点。
       const targets = section.querySelectorAll(
-        '.project-heading, .project-window, .tool-heading, .tool-entry, .blog-heading, .blog-row, .about-heading, .about-entry',
+        '.tool-heading, .tool-entry, .blog-heading, .blog-row, .about-heading, .about-entry',
       )
 
       gsap.fromTo(
