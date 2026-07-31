@@ -197,7 +197,7 @@ function scrollToSection(event: MouseEvent, sectionId?: string) {
   // 当前触发导航的锚点提供目标 hash。
   const anchor = event.currentTarget as HTMLAnchorElement
   // 目标章节缺失时保留浏览器默认行为。
-  const target = document.querySelector(anchor.hash)
+  const target = document.querySelector<HTMLElement>(anchor.hash)
 
   if (!target) {
     return
@@ -216,12 +216,38 @@ function scrollToSection(event: MouseEvent, sectionId?: string) {
     activeSection.value = resolvedSectionId
   }
 
+  // 固定章节需要把导航目标换算为动画场景的起点或终点。
+  const targetScrollY = resolveSectionScrollPosition(target, resolvedSectionId)
+
   gsap.killTweensOf(window)
   gsap.to(window, {
     duration: 0.72,
-    scrollTo: { y: target, offsetY: 0 },
+    scrollTo: { y: targetScrollY, offsetY: 0 },
     ease: 'power3.inOut',
     overwrite: true,
   })
+}
+
+/**
+ * 根据章节是否被 ScrollTrigger 固定，解析导航应到达的真实滚动位置。
+ * PROJECT 需要回到横向轨道起点，TOOL 需要直接落到四卡完整呈现的终点。
+ */
+function resolveSectionScrollPosition(target: HTMLElement, sectionId?: HomeSectionId) {
+  // 固定章节的父级 spacer 保存了完整的 pin 滚动区间。
+  const pinSpacer = target.parentElement
+
+  if (!pinSpacer?.classList.contains('pin-spacer')) {
+    return target
+  }
+
+  // spacer 顶部是固定场景的起点，不受 section 内部 transform 影响。
+  const spacerTop = pinSpacer.getBoundingClientRect().top + window.scrollY
+
+  if (sectionId === 'tool') {
+    // TOOL 终点需要扣除视口高度，让固定场景仍保持完整占据视口。
+    return spacerTop + pinSpacer.offsetHeight - target.offsetHeight
+  }
+
+  return spacerTop
 }
 </script>
