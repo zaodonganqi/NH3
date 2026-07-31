@@ -197,45 +197,48 @@ onMounted(async () => {
       const introRailPixels = gsap.utils.toArray<HTMLElement>('.project-heading span i', section)
 
       if (introTitle && introKicker) {
+        // 标题节点在进入视口前就固定为起始态，避免首次触发时从默认可见状态闪回。
+        gsap.set(introKicker, {
+          autoAlpha: 0,
+          x: 168,
+        })
+        gsap.set(introTitle, {
+          autoAlpha: 0,
+          x: -280,
+          y: 104,
+        })
+        gsap.set(introRailPixels, {
+          autoAlpha: 0,
+          y: 52,
+          scale: 0,
+        })
+
         // 标题时间线发生在 pin 之前，把 Hero 到 Project 的过渡变成完整入场段落。
         const introTimeline = gsap.timeline({
           scrollTrigger: {
             trigger: section,
-            start: 'top 94%',
-            end: 'top 10%',
+            start: 'top 52%',
+            end: 'top top',
             toggleActions: 'play none none none',
             fastScrollEnd: true,
           },
         })
 
         introTimeline
-          .fromTo(introKicker, {
-            autoAlpha: 0,
-            x: 168,
-          }, {
+          .to(introKicker, {
             autoAlpha: 1,
             x: 0,
             duration: 0.46,
             ease: 'power3.out',
           }, 0)
-          .fromTo(introTitle, {
-            autoAlpha: 0,
-            x: -280,
-            y: 104,
-            clipPath: 'inset(0 100% 0 0)',
-          }, {
+          .to(introTitle, {
             autoAlpha: 1,
             x: 0,
             y: 0,
-            clipPath: 'inset(0 0% 0 0)',
             duration: 0.9,
             ease: 'expo.out',
           }, 0.08)
-          .fromTo(introRailPixels, {
-            autoAlpha: 0,
-            y: 52,
-            scale: 0,
-          }, {
+          .to(introRailPixels, {
             autoAlpha: 1,
             y: 0,
             scale: 1,
@@ -332,9 +335,11 @@ onMounted(async () => {
         const slideIcon = slide.querySelector<HTMLElement>('.pixel-link-card__icon')
         // 项目名称是卡片内部最后稳定的主要标签。
         const slideTitle = slide.querySelector<HTMLElement>('.pixel-link-card__body strong')
+        // 项目摘要与标题使用相邻节奏进入，避免卡体中只剩孤立文本。
+        const slideSummary = slide.querySelector<HTMLElement>('.pixel-link-card__body p')
         // 外框索引和内部状态文字分别延迟进入，增加 02 与 03 的信息层动画。
         const slideMeta = gsap.utils.toArray<HTMLElement>(
-          '.project-slide__frame span, .pixel-link-card header span, .pixel-link-card footer span',
+          '.project-slide__frame span, .pixel-link-card header, .pixel-link-card footer',
           slide,
         )
         // 卡片周围的小像素在卡片稳定后向外展开，强化纯像素冲击感。
@@ -343,11 +348,12 @@ onMounted(async () => {
         const detailTimeline = gsap.timeline({ paused: true })
 
         if (slideNumber) {
-          detailTimeline.fromTo(slideNumber, {
+          gsap.set(slideNumber, {
             autoAlpha: 0,
             x: 380 * horizontalDirection,
             y: index === 2 ? 280 : -280,
-          }, {
+          })
+          detailTimeline.to(slideNumber, {
             autoAlpha: 1,
             x: 0,
             y: 0,
@@ -357,79 +363,98 @@ onMounted(async () => {
         }
 
         if (slideWindow) {
-          detailTimeline.fromTo(slideWindow, {
+          gsap.set(slideWindow, {
             autoAlpha: 0,
-            x: 320 * horizontalDirection,
-            y: 220 * verticalDirection,
-            clipPath: 'inset(46% 0 46% 0)',
-          }, {
+            x: 120 * horizontalDirection,
+            y: 72 * verticalDirection,
+          })
+          detailTimeline.to(slideWindow, {
             autoAlpha: 1,
             x: 0,
             y: 0,
-            clipPath: 'inset(0% 0 0% 0)',
-            duration: 0.9,
+            duration: 0.74,
             ease: 'power4.out',
           }, 0.08)
         }
 
         if (slideIcon) {
-          detailTimeline.fromTo(slideIcon, {
+          gsap.set(slideIcon, {
             autoAlpha: 0,
             x: -150 * horizontalDirection,
             y: 90 * verticalDirection,
             scale: 0.35,
-          }, {
+          })
+          detailTimeline.to(slideIcon, {
             autoAlpha: 1,
             x: 0,
             y: 0,
             scale: 1,
             duration: 0.62,
             ease: 'power4.out',
-          }, 0.34)
+          }, 0.12)
         }
 
         if (slideTitle) {
-          detailTimeline.fromTo(slideTitle, {
+          gsap.set(slideTitle, {
             autoAlpha: 0,
             x: 180 * horizontalDirection,
-          }, {
+          })
+          detailTimeline.to(slideTitle, {
             autoAlpha: 1,
             x: 0,
             duration: 0.54,
             ease: 'power3.out',
-          }, 0.42)
+          }, 0.18)
         }
 
-        detailTimeline.fromTo(slideMeta, {
+        if (slideSummary) {
+          gsap.set(slideSummary, {
+            autoAlpha: 0,
+            x: 120 * horizontalDirection,
+          })
+          detailTimeline.to(slideSummary, {
+            autoAlpha: 1,
+            x: 0,
+            duration: 0.48,
+            ease: 'power3.out',
+          }, 0.23)
+        }
+
+        gsap.set(slideMeta, {
           autoAlpha: 0,
           y: 32 * verticalDirection,
-        }, {
+        })
+        detailTimeline.to(slideMeta, {
           autoAlpha: 1,
           y: 0,
           duration: 0.42,
           stagger: 0.035,
           ease: 'power3.out',
-        }, 0.5)
+        }, 0.28)
+
+        // 卡片与碎片在 ScrollTrigger 建立前先写入起始态，首次播放不会闪回默认布局。
+        gsap.set(slide, {
+          autoAlpha: 0,
+          y: 220 * verticalDirection,
+        })
+        gsap.set(slidePixels, {
+          autoAlpha: 0,
+          x: 0,
+          y: 0,
+          scale: 0,
+        })
 
         // 卡片主体只向前播放；反向时由主触发器直接完成并冻结。
-        const slideAnimation = gsap.fromTo(slide, {
-          autoAlpha: 0.18,
-          y: 280 * verticalDirection,
-        }, {
+        const slideAnimation = gsap.to(slide, {
           autoAlpha: 1,
           y: 0,
-          duration: 0.78,
+          duration: 0.74,
           ease: 'power4.out',
           paused: true,
         })
 
         // 卡片碎片使用独立动画，便于反向时与卡体一起立即结束。
-        const pixelAnimation = gsap.fromTo(slidePixels, {
-          autoAlpha: 0,
-          x: 0,
-          y: 0,
-          scale: 0,
-        }, {
+        const pixelAnimation = gsap.to(slidePixels, {
           autoAlpha: 1,
           x: 64 * horizontalDirection,
           y: -40 * verticalDirection,

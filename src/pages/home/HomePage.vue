@@ -6,7 +6,10 @@
     />
     <HeroSection @navigate="scrollToSection" />
     <ProjectSection />
-    <ToolSection />
+    <ToolSection
+      @activate="activateToolSection"
+      @leave-forward="activateBlogSection"
+    />
     <BlogSection />
     <AboutSection />
     <SiteFooter />
@@ -74,7 +77,7 @@ onMounted(async () => {
     sections.forEach((section) => {
       // 当前章节参与滚动入场的直接视觉节点。
       const targets = section.querySelectorAll(
-        '.tool-heading, .tool-entry, .blog-heading, .blog-row, .about-heading, .about-entry',
+        '.blog-heading, .blog-row, .about-heading, .about-entry',
       )
 
       gsap.fromTo(
@@ -171,6 +174,20 @@ function createScrollCueFade() {
       scrub: 0.6,
     },
   })
+}
+
+/**
+ * TOOL 固定滚动场景活动时保持顶部导航选中项正确。
+ */
+function activateToolSection() {
+  activeSection.value = 'tool'
+}
+
+/**
+ * TOOL 正向离开固定场景后立即切换到 BLOG 导航状态。
+ */
+function activateBlogSection() {
+  activeSection.value = 'blog'
 }
 
 /**

@@ -74,8 +74,8 @@ export const toolItems: HomeSectionLinkItem[] = [
     summary: '等待配置工具页面',
     meta: 'UTILITY',
     href: '',
-    accent: '#aa861f',
-    secondary: '#eadba3',
+    accent: '#5470d2',
+    secondary: '#e7ecff',
     pattern: ['...1...', '..111..', '.11.11.', '11...11', '...1...', '...1...', '..111..'],
   },
   {
@@ -85,8 +85,8 @@ export const toolItems: HomeSectionLinkItem[] = [
     summary: '等待配置像素工具页面',
     meta: 'CANVAS',
     href: '',
-    accent: '#247d88',
-    secondary: '#b7e4e6',
+    accent: '#2b8c8c',
+    secondary: '#ddf4f1',
     pattern: ['1111111', '1.1.1.1', '1111111', '1.1.1.1', '1111111', '1.1.1.1', '1111111'],
   },
   {
@@ -96,8 +96,8 @@ export const toolItems: HomeSectionLinkItem[] = [
     summary: '等待配置代码工具页面',
     meta: 'SOURCE',
     href: '',
-    accent: '#2f8257',
-    secondary: '#b7e2ca',
+    accent: '#7658b8',
+    secondary: '#ede5fb',
     pattern: ['11...11', '.11.11.', '..111..', '...1...', '..111..', '.11.11.', '11...11'],
   },
   {
@@ -107,8 +107,8 @@ export const toolItems: HomeSectionLinkItem[] = [
     summary: '等待配置数据工具页面',
     meta: 'BUFFER',
     href: '',
-    accent: '#c83d4b',
-    secondary: '#f0b9bf',
+    accent: '#c95f78',
+    secondary: '#fbe5ea',
     pattern: ['.11111.', '11...11', '1.111.1', '1.1.1.1', '1.111.1', '11...11', '.11111.'],
   },
 ]
