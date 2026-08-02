@@ -56,7 +56,6 @@ a, button { color: inherit; font: inherit; }
   min-height: 100vh;
   padding: clamp(72px, 9vw, 140px) clamp(40px, 8vw, 124px);
   overflow: hidden;
-  border-top: 1px solid #edf1fa;
   background: #ffffff;
 }
 

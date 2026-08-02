@@ -5,12 +5,33 @@
       @navigate="scrollToSection"
     />
     <HeroSection @navigate="scrollToSection" />
+    <PixelSectionBridge
+      from="#ffffff"
+      middle="#fafbfe"
+      to="#ffffff"
+    />
     <ProjectSection />
+    <PixelSectionBridge
+      from="#ffffff"
+      middle="#f7f8fc"
+      to="#f8faff"
+      :overlap-before="false"
+    />
     <ToolSection
       @activate="activateToolSection"
       @leave-forward="activateBlogSection"
     />
+    <PixelSectionBridge
+      from="#f8faff"
+      middle="#f3f5fa"
+      to="#f7f9ff"
+    />
     <BlogSection />
+    <PixelSectionBridge
+      from="#f7f9ff"
+      middle="#f6faf9"
+      to="#ffffff"
+    />
     <AboutSection />
     <SiteFooter />
   </main>
@@ -25,6 +46,7 @@ import {
   AboutSection,
   BlogSection,
   HeroSection,
+  PixelSectionBridge,
   ProjectSection,
   ToolSection,
 } from '../../components/home'
@@ -77,7 +99,7 @@ onMounted(async () => {
     sections.forEach((section) => {
       // 当前章节参与滚动入场的直接视觉节点。
       const targets = section.querySelectorAll(
-        '.blog-heading, .blog-row, .about-heading, .about-entry',
+        '.about-heading, .about-entry',
       )
 
       gsap.fromTo(

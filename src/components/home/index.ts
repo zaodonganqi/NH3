@@ -5,6 +5,7 @@
  */
 
 export { default as HeroSection } from './hero/HeroSection.vue'
+export { default as PixelSectionBridge } from './sections/PixelSectionBridge.vue'
 export { default as ProjectSection } from './sections/ProjectSection.vue'
 export { default as ToolSection } from './sections/ToolSection.vue'
 export { default as BlogSection } from './sections/BlogSection.vue'
