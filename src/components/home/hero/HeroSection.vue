@@ -1,5 +1,5 @@
 <template>
-  <section id="home" class="hero" aria-labelledby="hero-title">
+  <section :id="heroContent.id" class="hero" aria-labelledby="hero-title">
     <HomeThreeBackground ref="backgroundRef" />
 
     <div class="hero-signature intro-piece" aria-hidden="true">
@@ -7,50 +7,60 @@
     </div>
 
     <div class="hero-copy intro-piece">
-      <p class="hero-copy__eyebrow">SOFTWARE ENGINEER / EXPLORER</p>
+      <p class="hero-copy__eyebrow">{{ heroContent.eyebrow }}</p>
       <h1 id="hero-title">
         <PixelText
           class="hero-title"
-          :text="'躁动的\n氨气'"
+          :text="heroContent.title"
           :density="27"
           color="linear-gradient(135deg, #3557d5 0%, #159f9a 58%, #d65a9e 100%)"
         />
       </h1>
-      <p class="hero-copy__line"><span aria-hidden="true">♥</span> Learn. Create. Repeat.</p>
-      <a class="pixel-link" href="#project" @click="emit('navigate', $event)">探索更多</a>
+      <p class="hero-copy__line">
+        <span aria-hidden="true">{{ heroContent.taglineSymbol }}</span>
+        {{ heroContent.tagline }}
+      </p>
+      <a
+        class="pixel-link"
+        :href="heroContent.cta.href"
+        @click="emit('navigate', $event)"
+      >{{ heroContent.cta.label }}</a>
     </div>
 
     <PixelMolecule @transition-progress="syncMoleculeField" />
 
-    <div class="code-note intro-piece" aria-label="代码简介">
+    <div class="code-note intro-piece" :aria-label="heroContent.code.ariaLabel">
       <span class="code-note__lines" aria-hidden="true">
-        <span>1</span>
-        <span>2</span>
-        <span>3</span>
-        <span>4</span>
-        <span>5</span>
-        <span>6</span>
+        <span
+          v-for="line in heroContent.code.entries.length + 2"
+          :key="line"
+        >{{ line }}</span>
       </span>
       <code>
-        <span class="code-keyword">const</span> <span class="code-name">nh3</span> <span class="code-punctuation">= {</span><br />
-        &nbsp;&nbsp;<span class="code-property">identity</span><span class="code-punctuation">:</span> <span class="code-string">"NH3"</span><span class="code-punctuation">,</span><br />
-        &nbsp;&nbsp;<span class="code-property">nature</span><span class="code-punctuation">:</span> <span class="code-string">"curious"</span><span class="code-punctuation">,</span><br />
-        &nbsp;&nbsp;<span class="code-property">passion</span><span class="code-punctuation">:</span> <span class="code-string">"building"</span><span class="code-punctuation">,</span><br />
-        &nbsp;&nbsp;<span class="code-property">energy</span><span class="code-punctuation">:</span> <span class="code-string">"unlimited"</span><br />
-        <span class="code-punctuation">}</span>
+        <span class="code-line">
+          <span class="code-keyword">{{ heroContent.code.keyword }}</span>&nbsp;<span class="code-name">{{ heroContent.code.variableName }}</span>&nbsp;<span class="code-punctuation">= {</span>
+        </span>
+        <span
+          v-for="(entry, index) in heroContent.code.entries"
+          :key="entry.key"
+          class="code-line code-line--entry"
+        >
+          <span class="code-property">{{ entry.key }}</span><span class="code-punctuation">:</span>&nbsp;<span class="code-string">"{{ entry.value }}"</span><span v-if="index < heroContent.code.entries.length - 1" class="code-punctuation">,</span>
+        </span>
+        <span class="code-line"><span class="code-punctuation">}</span></span>
       </code>
     </div>
 
-    <div class="terminal intro-piece" aria-label="终端问候">
+    <div class="terminal intro-piece" :aria-label="heroContent.terminal.ariaLabel">
       <i v-for="edge in terminalEdges" :key="edge" class="terminal__edge" :class="edge"></i>
-      <span>&gt;_</span>
-      <strong>&gt; Hello, World!</strong>
+      <span>{{ heroContent.terminal.prompt }}</span>
+      <strong>{{ heroContent.terminal.greeting }}</strong>
       <PixelPattern :pattern="patterns.smile" :palette="palettes.hydrogen" />
     </div>
 
     <div class="scroll-cue intro-piece" aria-hidden="true">
       <div class="scroll-cue__motion">
-        <span>SCROLL DOWN</span>
+        <span>{{ heroContent.scrollCue }}</span>
         <PixelPattern :pattern="patterns.chevron" :palette="palettes.primary" />
       </div>
     </div>
@@ -59,7 +69,7 @@
 
 <script setup lang="ts">
 import { defineAsyncComponent, ref } from 'vue'
-import { palettes, patterns } from '@/config'
+import { heroContent, palettes, patterns } from '@/config'
 import { PixelPattern, PixelText } from '../../base/pixel'
 import PixelMolecule from './PixelMolecule.vue'
 
@@ -218,8 +228,17 @@ function syncMoleculeField(progress: number) {
 }
 
 .code-note code {
-  display: block;
+  display: grid;
   font-family: inherit;
+}
+
+.code-line {
+  display: block;
+  white-space: nowrap;
+}
+
+.code-line--entry {
+  padding-left: 2em;
 }
 
 .code-keyword { color: #6078ec; }

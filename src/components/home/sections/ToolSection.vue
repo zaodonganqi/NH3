@@ -1,6 +1,6 @@
 <template>
   <section
-    id="tool"
+    :id="homeSections.tool.id"
     ref="sectionRef"
     class="content-section tool-section"
   >
@@ -8,12 +8,12 @@
 
     <PixelSectionHeading
       class="tool-heading"
-      kicker="TOOL / 前端工具"
-      title="TOOL"
+      :kicker="homeSections.tool.kicker"
+      :title="homeSections.tool.title"
       :density="14"
     />
 
-    <div class="tool-stage" aria-label="工具页面入口">
+    <div class="tool-stage" :aria-label="homeSections.tool.ariaLabel">
       <div
         v-for="(item, index) in toolItems"
         :key="item.id"
@@ -30,7 +30,7 @@
 import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import { toolItems } from '../../../config/home'
+import { homeSections, toolItems } from '../../../config/home'
 import PixelSectionHeading from './PixelSectionHeading.vue'
 import ToolDepthField from './ToolDepthField.vue'
 import ToolPortalCard from './ToolPortalCard.vue'

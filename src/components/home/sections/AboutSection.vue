@@ -1,13 +1,13 @@
 <template>
-  <section id="about" class="content-section about-section reveal-section">
+  <section :id="homeSections.about.id" class="content-section about-section reveal-section">
     <PixelSectionHeading
       class="about-heading"
-      kicker="ABOUT / 关于"
-      title="ABOUT"
+      :kicker="homeSections.about.kicker"
+      :title="homeSections.about.title"
       :density="16"
     />
 
-    <div class="about-space" aria-label="个人信息页面索引">
+    <div class="about-space" :aria-label="homeSections.about.ariaLabel">
       <PixelLinkCard
         v-for="item in aboutItems"
         :key="item.id"
@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { aboutItems } from '../../../config/home'
+import { aboutItems, homeSections } from '../../../config/home'
 import PixelLinkCard from './PixelLinkCard.vue'
 import PixelSectionHeading from './PixelSectionHeading.vue'
 </script>

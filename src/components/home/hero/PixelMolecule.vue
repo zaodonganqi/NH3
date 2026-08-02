@@ -1,5 +1,5 @@
 <template>
-  <div ref="rootRef" class="molecule" aria-label="NH3 分子像素图形">
+  <div ref="rootRef" class="molecule" :aria-label="heroContent.molecule.ariaLabel">
     <div ref="positionRef" class="molecule__position">
       <div ref="flightRef" class="molecule__flight">
         <div class="molecule__idle">
@@ -33,8 +33,8 @@
         ref="returnButtonRef"
         class="molecule-return-overlay"
         type="button"
-        aria-label="返回页面顶部"
-        title="返回顶部"
+        :aria-label="heroContent.molecule.returnAriaLabel"
+        :title="heroContent.molecule.returnTitle"
         @click="scrollToTop"
       >
         <PixelPattern :pattern="returnTopPattern" :palette="returnTopPalette" />
@@ -56,6 +56,7 @@ import { Flip } from 'gsap/Flip'
 import { MotionPathPlugin } from 'gsap/MotionPathPlugin'
 import { ScrollToPlugin } from 'gsap/ScrollToPlugin'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import { heroContent, homeSections } from '../../../config/home'
 import { PixelPattern } from '../../base/pixel'
 import PixelAtom from './PixelAtom.vue'
 
@@ -215,7 +216,7 @@ function mountMoleculeTransition() {
   // 分子根节点必须存在才能建立跨 section 的布局过渡。
   const root = rootRef.value
   // Project 是首页后的第二个 section，也是新过渡区间的尺寸来源。
-  const transitionSection = document.getElementById('project')
+  const transitionSection = document.getElementById(homeSections.project.id)
 
   if (!root || !transitionSection || window.innerWidth <= 820) {
     return

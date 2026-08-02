@@ -1,6 +1,6 @@
 <template>
   <section
-    id="project"
+    :id="homeSections.project.id"
     ref="sectionRef"
     class="content-section project-section"
   >
@@ -12,8 +12,8 @@
       <div class="project-intro">
         <PixelSectionHeading
           class="project-heading"
-          kicker="PROJECT / 关联项目"
-          title="PROJECT"
+          :kicker="homeSections.project.kicker"
+          :title="homeSections.project.title"
           :density="14"
         />
       </div>
@@ -52,15 +52,15 @@
 
       <div class="project-end" aria-hidden="true">
         <span></span>
-        <span>NEXT</span>
-        <span>TOOL</span>
+        <span>{{ homeSections.project.nextLabel }}</span>
+        <span>{{ homeSections.tool.title }}</span>
       </div>
     </div>
 
     <div class="project-progress" aria-hidden="true">
-      <span>PROJECT_STREAM</span>
+      <span>{{ homeSections.project.progressLabel }}</span>
       <i><b ref="progressRef"></b></i>
-      <span>03 / 03</span>
+      <span>{{ projectItems.length.toString().padStart(2, '0') }} / {{ projectItems.length.toString().padStart(2, '0') }}</span>
     </div>
   </section>
 </template>
@@ -69,12 +69,17 @@
 import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import { projectItems } from '../../../config/home'
+import { homeSections, projectItems } from '../../../config/home'
 import { PixelText } from '../../base/pixel'
 import PixelLinkCard from './PixelLinkCard.vue'
 import PixelSectionHeading from './PixelSectionHeading.vue'
 
 gsap.registerPlugin(ScrollTrigger)
+
+// 横向场景至少推进到该比例后，反向滚动才会被识别为真实回看操作。
+const PROJECT_REVIEW_PROGRESS_THRESHOLD = 0.015
+// 连续反向滚动累计达到该距离后才跳过入场动画，过滤 pin 校正和触控板回弹。
+const PROJECT_REVIEW_DISTANCE_THRESHOLD = 12
 
 // Project 根节点既是固定场景，也是横向滚动距离的测量边界。
 const sectionRef = ref<HTMLElement | null>(null)
@@ -120,8 +125,10 @@ onMounted(async () => {
       const forwardOnlyAnimations: gsap.core.Animation[] = []
       // 每张项目卡对应的装配动画由主横向进度统一调度，不再维护独立 ScrollTrigger 状态。
       const slideAnimationMap = new Map<HTMLElement, gsap.core.Animation[]>()
-      // 记录横向场景上一帧方向，仅在首次反向时批量完成入场动画。
-      let lastHorizontalDirection = 1
+      // 上一次真实页面滚动坐标用于区分用户回滚与 ScrollTrigger 内部状态刷新。
+      let lastHorizontalScroll = window.scrollY
+      // 连续反向滚动距离只有达到阈值后才进入回看模式。
+      let pendingReverseDistance = 0
       // 回看模式下所有卡片保持完成态，直到 Project 完全离开视口后才解除。
       let isReviewing = false
 
@@ -138,10 +145,26 @@ onMounted(async () => {
       }
 
       /**
-       * 首次检测到反向滚动时立即完成所有入场动画，后续回看只更新横向位置。
+       * 首次检测到明确的反向滚动后立即完成入场动画，后续回看只更新横向位置。
        */
       const handleHorizontalUpdate = (trigger: ScrollTrigger) => {
-        if (trigger.direction < 0 && lastHorizontalDirection >= 0) {
+        // 当前真实滚动坐标用于排除 pin 建立过程中产生的方向抖动。
+        const currentScroll = trigger.scroll()
+        // 与上一帧的滚动差值决定本轮属于前进、静止还是反向。
+        const scrollDelta = currentScroll - lastHorizontalScroll
+
+        if (scrollDelta < 0) {
+          pendingReverseDistance += Math.abs(scrollDelta)
+        } else if (scrollDelta > 0) {
+          pendingReverseDistance = 0
+        }
+
+        // 只有进入场景并形成明确反向距离后，才立即完成动画进入回看状态。
+        const shouldEnterReview = !isReviewing
+          && trigger.progress >= PROJECT_REVIEW_PROGRESS_THRESHOLD
+          && pendingReverseDistance >= PROJECT_REVIEW_DISTANCE_THRESHOLD
+
+        if (shouldEnterReview) {
           for (const animation of forwardOnlyAnimations) {
             animation.progress(1).pause()
           }
@@ -149,7 +172,7 @@ onMounted(async () => {
           isReviewing = true
         }
 
-        if (trigger.direction > 0 && !isReviewing) {
+        if (scrollDelta > 0 && !isReviewing) {
           // 实时轨道长度用于把每张卡的初始横坐标换算为稳定的主进度阈值。
           const travelDistance = Math.max(1, getTravelDistance())
 
@@ -173,7 +196,7 @@ onMounted(async () => {
           }
         }
 
-        lastHorizontalDirection = trigger.direction
+        lastHorizontalScroll = currentScroll
       }
 
       /**
@@ -184,8 +207,9 @@ onMounted(async () => {
           animation.progress(0).pause()
         }
 
-        // 保持反向标记，避免同一滚动帧内主触发器再次把刚归零的动画强制完成。
-        lastHorizontalDirection = -1
+        // 下一次正向进入从当前真实滚动坐标重新采样，不继承上一轮回看距离。
+        lastHorizontalScroll = window.scrollY
+        pendingReverseDistance = 0
         isReviewing = false
       }
 

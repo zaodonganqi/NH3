@@ -1,16 +1,21 @@
 <template>
   <header class="site-header intro-piece">
-    <a class="brand" href="#home" aria-label="NH3 首页" @click="handleBrandClick">
+    <a
+      class="brand"
+      :href="siteContent.brand.href"
+      :aria-label="siteContent.brand.ariaLabel"
+      @click="handleBrandClick"
+    >
       <PixelText
         class="brand__name"
-        text="NH3"
+        :text="siteContent.brand.name"
         :font-size="36"
         :letter-spacing="3"
         color="linear-gradient(90deg, #294cc8 0%, #159e9a 100%)"
       />
     </a>
 
-    <nav class="nav" aria-label="主导航">
+    <nav class="nav" :aria-label="siteContent.navigationAriaLabel">
       <a
         v-for="item in navItems"
         :key="item.id"
@@ -26,7 +31,7 @@
         }"
         :target="item.external ? '_blank' : undefined"
         :rel="item.external ? 'noreferrer' : undefined"
-        :aria-label="item.external ? '打开 GitHub' : undefined"
+        :aria-label="item.ariaLabel"
         @click="handleNavigationClick($event, item)"
       >
         <span class="nav__icon" aria-hidden="true">
@@ -40,7 +45,7 @@
 
 <script setup lang="ts">
 import type { NavItem } from '../../../config/site'
-import { navItems } from '../../../config/site'
+import { navItems, siteContent } from '../../../config/site'
 import { PixelText } from '../../base/pixel'
 import HeaderPixelIcon from './HeaderPixelIcon.vue'
 
@@ -51,7 +56,7 @@ const props = withDefaults(defineProps<{
    */
   activeSection?: string
 }>(), {
-  activeSection: 'home',
+  activeSection: siteContent.brand.sectionId,
 })
 
 // Header 只把站内锚点点击交给页面处理，外部链接保留浏览器默认行为。
@@ -66,7 +71,7 @@ const emit = defineEmits<{
  * 把左侧品牌点击作为 HOME 导航交给页面平滑滚动。
  */
 function handleBrandClick(event: MouseEvent) {
-  emit('navigate', event, 'home')
+  emit('navigate', event, siteContent.brand.sectionId)
 }
 
 /**

@@ -29,10 +29,26 @@ export interface NavItem {
    */
   hoverColor: string
   /**
+   * 覆盖链接默认名称的无障碍说明；主要用于外部入口。
+   */
+  ariaLabel?: string
+  /**
    * 标记是否交由浏览器新窗口打开；省略时按站内锚点处理。
    */
   external?: boolean
 }
+
+// 全站品牌、导航容器和页脚展示文案集中在此处维护。
+export const siteContent = {
+  brand: {
+    name: 'NH3',
+    href: '#home',
+    sectionId: 'home',
+    ariaLabel: 'NH3 首页',
+  },
+  navigationAriaLabel: '主导航',
+  footerText: 'CREATED BY NH3 · BUILT WITH VUE · 2026',
+} as const
 
 // 站点 GitHub 入口直接指向当前仓库所属账号，不创建中间页面。
 export const githubUrl = 'https://github.com/zaodonganqi'
@@ -168,6 +184,7 @@ export const navItems: NavItem[] = [
     iconPattern: navIconPatterns.github,
     activeColor: '#4b515b',
     hoverColor: '#24292f',
+    ariaLabel: '打开 GitHub',
     external: true,
   },
 ]

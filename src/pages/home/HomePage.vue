@@ -51,19 +51,13 @@ import {
   ToolSection,
 } from '../../components/home'
 import { SiteFooter, SiteHeader } from '../../components/site'
+import { heroContent, homeSectionIds, homeSections } from '../../config/home'
+import type { HomeSectionId } from '../../config/home'
 
 gsap.registerPlugin(ScrollTrigger, ScrollToPlugin)
 
-// 首页导航对应的真实章节顺序，也是 ScrollTrigger 建立判定区间的稳定来源。
-const sectionIds = ['home', 'project', 'tool', 'blog', 'about'] as const
-
-/**
- * 限制首页滚动状态只能指向实际存在的章节。
- */
-type HomeSectionId = (typeof sectionIds)[number]
-
 // 当前越过视口判定线的章节决定 Header 选中项。
-const activeSection = ref<HomeSectionId>('home')
+const activeSection = ref<HomeSectionId>(homeSectionIds[0])
 
 // 保存首页 GSAP 上下文，页面卸载时统一回收动画和 ScrollTrigger。
 let animationContext: gsap.Context | undefined
@@ -135,7 +129,7 @@ onUnmounted(() => {
  * 使用 GSAP ScrollTrigger 在固定视口判定线上同步当前章节。
  */
 function createSectionScrollTracking() {
-  for (const sectionId of sectionIds) {
+  for (const sectionId of homeSectionIds) {
     // 当前标识对应的真实章节节点用于建立独立滚动区间。
     const section = document.getElementById(sectionId)
 
@@ -167,7 +161,7 @@ function createScrollCueFade() {
   // 独立内层避免滚动渐隐覆盖首屏入场写入的根节点 transform。
   const cue = document.querySelector<HTMLElement>('.scroll-cue__motion')
   // 首页 section 为渐隐 ScrollTrigger 提供稳定的滚动起点。
-  const hero = document.getElementById('home')
+  const hero = document.getElementById(heroContent.id)
 
   if (!cue || !hero) {
     return
@@ -202,14 +196,14 @@ function createScrollCueFade() {
  * TOOL 固定滚动场景活动时保持顶部导航选中项正确。
  */
 function activateToolSection() {
-  activeSection.value = 'tool'
+  activeSection.value = homeSections.tool.id
 }
 
 /**
  * TOOL 正向离开固定场景后立即切换到 BLOG 导航状态。
  */
 function activateBlogSection() {
-  activeSection.value = 'blog'
+  activeSection.value = homeSections.blog.id
 }
 
 /**
@@ -228,7 +222,7 @@ function scrollToSection(event: MouseEvent, sectionId?: string) {
   // 请求标识必须匹配首页真实章节，外部入口不会进入该分支。
   const requestedSectionId = sectionId ?? target.id
   // 查找到的稳定标识用于更新受限的首页章节状态。
-  const resolvedSectionId = sectionIds.find(
+  const resolvedSectionId = homeSectionIds.find(
     (candidate) => candidate === requestedSectionId,
   )
 
@@ -265,7 +259,7 @@ function resolveSectionScrollPosition(target: HTMLElement, sectionId?: HomeSecti
   // spacer 顶部是固定场景的起点，不受 section 内部 transform 影响。
   const spacerTop = pinSpacer.getBoundingClientRect().top + window.scrollY
 
-  if (sectionId === 'tool') {
+  if (sectionId === homeSections.tool.id) {
     // TOOL 终点需要扣除视口高度，让固定场景仍保持完整占据视口。
     return spacerTop + pinSpacer.offsetHeight - target.offsetHeight
   }

@@ -3,12 +3,16 @@
     <span class="site-footer__rail" aria-hidden="true">
       <i v-for="index in 9" :key="`left-${index}`"></i>
     </span>
-    <p>CREATED BY NH3 · BUILT WITH VUE · 2026</p>
+    <p>{{ siteContent.footerText }}</p>
     <span class="site-footer__rail" aria-hidden="true">
       <i v-for="index in 9" :key="`right-${index}`"></i>
     </span>
   </footer>
 </template>
+
+<script setup lang="ts">
+import { siteContent } from '../../config/site'
+</script>
 
 <style scoped>
 .site-footer {

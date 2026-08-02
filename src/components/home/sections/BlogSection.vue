@@ -1,16 +1,16 @@
 <template>
-  <section id="blog" class="content-section blog-section">
+  <section :id="homeSections.blog.id" class="content-section blog-section">
     <canvas
       ref="fieldCanvas"
       class="blog-field-canvas"
       aria-hidden="true"
     ></canvas>
 
-    <div class="blog-heading" aria-label="BLOG">
+    <div class="blog-heading" :aria-label="homeSections.blog.title">
       <div class="blog-heading__title" aria-hidden="true">
         <PixelText
-          v-for="letter in blogTitleLetters"
-          :key="letter.text"
+          v-for="(letter, index) in blogTitleLetters"
+          :key="`${letter.text}-${index}`"
           class="blog-heading__letter"
           :text="letter.text"
           :density="letter.density"
@@ -20,13 +20,13 @@
       </div>
     </div>
 
-    <div class="blog-window" aria-label="文章页面索引">
+    <div class="blog-window" :aria-label="homeSections.blog.ariaLabel">
       <header class="blog-window__bar">
         <div class="blog-window__bar-label">
           <i></i>
-          <span>ARTICLE_STREAM</span>
+          <span>{{ homeSections.blog.streamLabel }}</span>
         </div>
-        <span>{{ blogItems.length.toString().padStart(2, '0') }} ENTRIES</span>
+        <span>{{ blogItems.length.toString().padStart(2, '0') }} {{ homeSections.blog.entriesLabel }}</span>
       </header>
 
       <div class="blog-window__scroll" @scroll="handleBlogScroll">
@@ -52,8 +52,8 @@
       </div>
 
       <footer class="blog-window__status">
-        <span>SCROLL INDEX</span>
-        <span>{{ scrollProgress.toString().padStart(2, '0') }}% READ</span>
+        <span>{{ homeSections.blog.scrollLabel }}</span>
+        <span>{{ scrollProgress.toString().padStart(2, '0') }}% {{ homeSections.blog.readLabel }}</span>
       </footer>
     </div>
   </section>
@@ -63,7 +63,7 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import { blogItems } from '../../../config/home'
+import { blogItems, homeSections } from '../../../config/home'
 import PixelLinkCard from './PixelLinkCard.vue'
 import { PixelText } from '../../base/pixel'
 
@@ -77,14 +77,26 @@ const fieldCanvas = ref<HTMLCanvasElement | null>(null)
 
 // 大型干涉图案使用独立冷暖配色，不读取文章图标或内容配置。
 const fieldColors = ['#4164e0', '#12a79d', '#e45f91', '#9b62d8'] as const
+// BLOG 标题保留原有逐字配色，配置只负责提供实际展示文字。
+const blogTitleColors = ['#4164e0', '#657de8', '#438ac7', '#12a79d'] as const
 
-// BLOG 标题拆成独立像素字符，使每个字母可以拥有单独的 GSAP 入场轨迹。
-const blogTitleLetters = [
-  { text: 'B', color: '#4164e0', density: 14, fontFamily: 'Zpix' },
-  { text: 'L', color: '#657de8', density: 14, fontFamily: 'Zpix' },
-  { text: 'O', color: '#438ac7', density: 14, fontFamily: 'Zpix' },
-  { text: 'G', color: '#12a79d', density: 14, fontFamily: 'Arial' },
-] as const
+// 配置中的 BLOG 标题按字符拆分，以便每个字母继续拥有独立 GSAP 轨迹。
+const blogTitleLetters = Array.from(homeSections.blog.title, createBlogTitleLetter)
+
+/**
+ * 为配置标题中的单个字符分配循环色和稳定的像素绘制参数。
+ */
+function createBlogTitleLetter(text: string, index: number) {
+  // 当前字符按索引循环读取标题配色，支持配置中调整标题长度。
+  const color = blogTitleColors[index % blogTitleColors.length] ?? blogTitleColors[0]
+
+  return {
+    text,
+    color,
+    density: 14,
+    fontFamily: text === 'G' ? 'Arial' : 'Zpix',
+  }
+}
 
 // Canvas 背景的 GSAP 相位和章节重组进度，均由渲染函数读取。
 const fieldState = {
@@ -445,7 +457,7 @@ function resizeField(context: CanvasRenderingContext2D) {
 
 // BLOG 挂载时建立 Canvas、GSAP 相位动画和单平面重组。
 onMounted(() => {
-  const section = document.querySelector<HTMLElement>('#blog')
+  const section = document.getElementById(homeSections.blog.id)
   const canvas = fieldCanvas.value
 
   if (!section || !canvas) {

@@ -28,6 +28,105 @@ export interface HomeSectionLinkItem {
   pattern: readonly string[]
 }
 
+/**
+ * 描述 Hero 代码简介中的一个字符串属性。
+ */
+export interface HeroCodeEntry {
+  // 对象属性名直接展示在代码简介左侧。
+  key: string
+  // 对象属性值以字符串形式展示在代码简介右侧。
+  value: string
+}
+
+// Hero 的标题、行动入口、代码简介和终端文案集中在此处维护。
+export const heroContent = {
+  id: 'home',
+  eyebrow: 'SOFTWARE ENGINEER / EXPLORER',
+  title: '躁动的\n氨气',
+  taglineSymbol: '♥',
+  tagline: 'Learn. Create. Repeat.',
+  cta: {
+    label: '探索更多',
+    href: '#project',
+  },
+  code: {
+    ariaLabel: '代码简介',
+    keyword: 'const',
+    variableName: 'nh3',
+    entries: [
+      { key: 'identity', value: 'NH3' },
+      { key: 'nature', value: 'curious' },
+      { key: 'passion', value: 'building' },
+      { key: 'energy', value: 'unlimited' },
+    ] satisfies HeroCodeEntry[],
+  },
+  terminal: {
+    ariaLabel: '终端问候',
+    prompt: '>_',
+    greeting: '> Hello, World!',
+  },
+  molecule: {
+    ariaLabel: 'NH3 分子像素图形',
+    returnAriaLabel: '返回页面顶部',
+    returnTitle: '返回顶部',
+  },
+  scrollCue: 'SCROLL DOWN',
+} as const
+
+// 各首页 section 的标题、索引栏和状态文案集中在此处维护。
+export const homeSections = {
+  project: {
+    id: 'project',
+    kicker: 'PROJECT / 关联项目',
+    title: 'PROJECT',
+    nextLabel: 'NEXT',
+    progressLabel: 'PROJECT_STREAM',
+  },
+  tool: {
+    id: 'tool',
+    kicker: 'TOOL / 前端工具',
+    title: 'TOOL',
+    ariaLabel: '工具页面入口',
+  },
+  blog: {
+    id: 'blog',
+    title: 'BLOG',
+    ariaLabel: '文章页面索引',
+    streamLabel: 'ARTICLE_STREAM',
+    entriesLabel: 'ENTRIES',
+    scrollLabel: 'SCROLL INDEX',
+    readLabel: 'READ',
+  },
+  about: {
+    id: 'about',
+    kicker: 'ABOUT / 关于',
+    title: 'ABOUT',
+    ariaLabel: '个人信息页面索引',
+  },
+} as const
+
+// 首页导航和 ScrollTrigger 共用的章节顺序由展示配置统一派生。
+export const homeSectionIds = [
+  heroContent.id,
+  homeSections.project.id,
+  homeSections.tool.id,
+  homeSections.blog.id,
+  homeSections.about.id,
+] as const
+
+/**
+ * 限制首页滚动状态只能指向配置中存在的章节。
+ */
+export type HomeSectionId = (typeof homeSectionIds)[number]
+
+// 项目、工具、文章和个人入口卡片共享的交互状态文案。
+export const homeCardLabels = {
+  openNewPage: 'OPEN NEW PAGE',
+  noTarget: 'NO TARGET',
+  ready: 'READY',
+  unassigned: 'UNASSIGNED',
+} as const
+
 // 项目 section 的配置项只提供索引信息和目标页面地址。
 export const projectItems: HomeSectionLinkItem[] = [
   {

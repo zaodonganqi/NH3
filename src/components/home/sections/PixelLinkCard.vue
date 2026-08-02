@@ -30,7 +30,7 @@
     </div>
 
     <footer>
-      <span>{{ item.href ? 'OPEN NEW PAGE' : 'NO TARGET' }}</span>
+      <span>{{ item.href ? homeCardLabels.openNewPage : homeCardLabels.noTarget }}</span>
       <PixelPattern
         class="pixel-link-card__arrow"
         :pattern="arrowPattern"
@@ -42,6 +42,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { homeCardLabels } from '../../../config/home'
 import type { HomeSectionLinkItem } from '../../../config/home'
 import { PixelPattern } from '../../base/pixel'
 
