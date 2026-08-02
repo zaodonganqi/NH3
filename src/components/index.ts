@@ -5,5 +5,6 @@
  */
 
 export * from './base/pixel'
+export { default as ShapeCurtainBackground } from './effects/ShapeCurtainBackground.vue'
 export * from './site'
 export * from './home'
