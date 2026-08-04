@@ -26,7 +26,7 @@ a, button { color: inherit; font: inherit; }
   width: 100%;
   min-height: 100vh;
   margin: 0;
-  overflow: hidden;
+  overflow: clip;
   color: #657694;
   background: #ffffff;
 }

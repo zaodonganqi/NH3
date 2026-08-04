@@ -1,3 +1,5 @@
+import aboutAvatar from '../assets/img/about-avatar.png'
+
 /**
  * 首页索引 section 的纯配置数据。
  *
@@ -36,6 +38,76 @@ export interface HeroCodeEntry {
   key: string
   // 对象属性值以字符串形式展示在代码简介右侧。
   value: string
+}
+
+/**
+ * 描述 About 滚动叙事中的一段中心文字。
+ */
+export interface AboutIntroLine {
+  // 稳定标识用于 Vue 渲染和 GSAP 节点映射。
+  id: string
+  // 当前滚动阶段完整展示的文字。
+  text: string
+  // 像素文字使用的主色。
+  color: string
+  // Canvas 像素文字的采样密度。
+  density: number
+}
+
+/**
+ * 描述 About 两侧一根由正方形像素组成的律动柱。
+ */
+export interface AboutRhythmBar {
+  // 稳定标识用于动画状态映射。
+  id: string
+  // 柱体出现于舞台左侧或右侧。
+  side: 'left' | 'right'
+  // 像素块使用的纯色。
+  color: string
+  // 柱体包含的最大像素数量。
+  segmentCount: number
+  // 窄屏最多保留的像素数量，避免左右柱体完全遮住中心。
+  mobileSegmentCount: number
+  // 律动收缩时仍需保留的最少像素数量。
+  minVisible: number
+  // 正弦律动使用的相位偏移。
+  phase: number
+}
+
+/**
+ * 描述最终个人名片两侧的一块碎片化信息。
+ */
+export interface AboutProfileFragment {
+  // 稳定标识用于像素重组目标映射。
+  id: string
+  // 信息块顶部的短标签。
+  label: string
+  // 信息块展示的主要内容。
+  value: string
+  // 信息块位于头像左侧或右侧。
+  side: 'left' | 'right'
+  // 信息块相对所在列的水平错位量。
+  shift: number
+  // 标签、外轮廓与硬阴影使用的强调色。
+  accent: string
+  // 信息块内部使用的浅色纯色背景。
+  background: string
+}
+
+/**
+ * 描述最终个人名片底部的一个联系入口。
+ */
+export interface AboutContactLink {
+  // 稳定标识用于链接渲染和动画交错。
+  id: string
+  // 联系入口的短标签。
+  label: string
+  // 页面中直接显示的联系值。
+  value: string
+  // 点击后打开的真实地址。
+  href: string
+  // 链接边框和悬停状态使用的主题色。
+  accent: string
 }
 
 // Hero 的标题、行动入口、代码简介和终端文案集中在此处维护。
@@ -249,39 +321,93 @@ export const blogItems: HomeSectionLinkItem[] = [
   },
 ]
 
-// 关于 section 只提供个人信息相关页面的导航入口。
-export const aboutItems: HomeSectionLinkItem[] = [
-  {
-    id: 'about-profile',
-    index: 'A1',
-    title: 'PROFILE PAGE',
-    summary: '等待配置个人介绍页面',
-    meta: 'IDENTITY',
-    href: '',
-    accent: '#247d88',
-    secondary: '#b7e4e6',
-    pattern: ['..111..', '.1...1.', '.1...1.', '..111..', '.11111.', '11...11', '1.....1'],
+// About 独立使用的柔和主色与浅色背景集中在此处维护。
+export const aboutPalette = {
+  blue: '#7892e4',
+  teal: '#6fc4bf',
+  purple: '#a184d2',
+  pink: '#df9fba',
+  blueLight: '#eaf0fc',
+  tealLight: '#e4f4f2',
+  purpleLight: '#f0eafa',
+  pinkLight: '#faeaf1',
+} as const
+
+// About 的滚动文字、律动柱和最终个人名片全部由这一份配置驱动。
+export const aboutContent = {
+  palette: aboutPalette,
+  intro: [
+    {
+      id: 'curiosity',
+      text: '好奇，让我不断靠近未知',
+      color: aboutPalette.blue,
+      density: 11,
+    },
+    {
+      id: 'building',
+      text: '把想法拆开，再做成能运行的东西',
+      color: aboutPalette.teal,
+      density: 11,
+    },
+    {
+      id: 'order',
+      text: '在代码、像素与运动之间寻找秩序',
+      color: aboutPalette.purple,
+      density: 11,
+    },
+    {
+      id: 'motion',
+      text: '保持躁动，也保持构建',
+      color: aboutPalette.pink,
+      density: 11,
+    },
+  ] satisfies AboutIntroLine[],
+  bars: [
+    { id: 'left-01', side: 'left', color: aboutPalette.blue, segmentCount: 6, mobileSegmentCount: 4, minVisible: 2, phase: 0 },
+    { id: 'left-02', side: 'left', color: aboutPalette.blue, segmentCount: 7, mobileSegmentCount: 4, minVisible: 2, phase: 0.26 },
+    { id: 'left-03', side: 'left', color: aboutPalette.teal, segmentCount: 8, mobileSegmentCount: 5, minVisible: 3, phase: 0.52 },
+    { id: 'left-04', side: 'left', color: aboutPalette.teal, segmentCount: 7, mobileSegmentCount: 4, minVisible: 2, phase: 0.78 },
+    { id: 'left-05', side: 'left', color: aboutPalette.purple, segmentCount: 6, mobileSegmentCount: 4, minVisible: 2, phase: 1.04 },
+    { id: 'left-06', side: 'left', color: aboutPalette.purple, segmentCount: 8, mobileSegmentCount: 5, minVisible: 3, phase: 1.3 },
+    { id: 'left-07', side: 'left', color: aboutPalette.pink, segmentCount: 9, mobileSegmentCount: 5, minVisible: 3, phase: 1.56 },
+    { id: 'left-08', side: 'left', color: aboutPalette.pink, segmentCount: 8, mobileSegmentCount: 5, minVisible: 3, phase: 1.82 },
+    { id: 'left-09', side: 'left', color: aboutPalette.purple, segmentCount: 7, mobileSegmentCount: 4, minVisible: 2, phase: 2.08 },
+    { id: 'left-10', side: 'left', color: aboutPalette.teal, segmentCount: 6, mobileSegmentCount: 4, minVisible: 2, phase: 2.34 },
+    { id: 'left-11', side: 'left', color: aboutPalette.blue, segmentCount: 8, mobileSegmentCount: 5, minVisible: 3, phase: 2.6 },
+    { id: 'left-12', side: 'left', color: aboutPalette.blue, segmentCount: 7, mobileSegmentCount: 4, minVisible: 2, phase: 2.86 },
+    { id: 'right-01', side: 'right', color: aboutPalette.pink, segmentCount: 7, mobileSegmentCount: 4, minVisible: 2, phase: 0.72 },
+    { id: 'right-02', side: 'right', color: aboutPalette.pink, segmentCount: 8, mobileSegmentCount: 5, minVisible: 3, phase: 0.98 },
+    { id: 'right-03', side: 'right', color: aboutPalette.purple, segmentCount: 6, mobileSegmentCount: 4, minVisible: 2, phase: 1.24 },
+    { id: 'right-04', side: 'right', color: aboutPalette.purple, segmentCount: 7, mobileSegmentCount: 4, minVisible: 2, phase: 1.5 },
+    { id: 'right-05', side: 'right', color: aboutPalette.teal, segmentCount: 8, mobileSegmentCount: 5, minVisible: 3, phase: 1.76 },
+    { id: 'right-06', side: 'right', color: aboutPalette.teal, segmentCount: 9, mobileSegmentCount: 5, minVisible: 3, phase: 2.02 },
+    { id: 'right-07', side: 'right', color: aboutPalette.blue, segmentCount: 8, mobileSegmentCount: 5, minVisible: 3, phase: 2.28 },
+    { id: 'right-08', side: 'right', color: aboutPalette.blue, segmentCount: 7, mobileSegmentCount: 4, minVisible: 2, phase: 2.54 },
+    { id: 'right-09', side: 'right', color: aboutPalette.teal, segmentCount: 6, mobileSegmentCount: 4, minVisible: 2, phase: 2.8 },
+    { id: 'right-10', side: 'right', color: aboutPalette.purple, segmentCount: 8, mobileSegmentCount: 5, minVisible: 3, phase: 3.06 },
+    { id: 'right-11', side: 'right', color: aboutPalette.pink, segmentCount: 7, mobileSegmentCount: 4, minVisible: 2, phase: 3.32 },
+    { id: 'right-12', side: 'right', color: aboutPalette.pink, segmentCount: 6, mobileSegmentCount: 4, minVisible: 2, phase: 3.58 },
+  ] satisfies AboutRhythmBar[],
+  profile: {
+    portrait: {
+      src: aboutAvatar,
+      alt: 'NH3 的个人头像',
+      fallback: 'NH3',
+    },
+    name: 'NH3',
+    role: 'SOFTWARE ENGINEER / EXPLORER',
+    statement: 'LEARN. CREATE. REPEAT.',
+    fragments: [
+      { id: 'nature', label: 'NATURE', value: 'CURIOUS', side: 'left', shift: -34, accent: aboutPalette.blue, background: aboutPalette.blueLight },
+      { id: 'focus', label: 'FOCUS', value: 'VUE / CANVAS / MOTION', side: 'left', shift: 18, accent: aboutPalette.teal, background: aboutPalette.tealLight },
+      { id: 'mode', label: 'MODE', value: 'LEARN / CREATE / REPEAT', side: 'left', shift: -10, accent: aboutPalette.purple, background: aboutPalette.purpleLight },
+      { id: 'passion', label: 'PASSION', value: 'BUILDING', side: 'right', shift: 30, accent: aboutPalette.pink, background: aboutPalette.pinkLight },
+      { id: 'energy', label: 'ENERGY', value: 'UNLIMITED', side: 'right', shift: -20, accent: aboutPalette.blue, background: aboutPalette.blueLight },
+      { id: 'status', label: 'STATUS', value: 'OPEN & ITERATING', side: 'right', shift: 12, accent: aboutPalette.teal, background: aboutPalette.tealLight },
+    ] satisfies AboutProfileFragment[],
+    contacts: [
+      { id: 'github', label: 'GITHUB', value: '@zaodonganqi', href: 'https://github.com/zaodonganqi', accent: '#30343b' },
+      { id: 'repository', label: 'SOURCE', value: 'NH3', href: 'https://github.com/zaodonganqi/NH3', accent: aboutPalette.purple },
+    ] satisfies AboutContactLink[],
   },
-  {
-    id: 'about-contact',
-    index: 'A2',
-    title: 'CONTACT PAGE',
-    summary: '等待配置联系方式页面',
-    meta: 'CHANNEL',
-    href: '',
-    accent: '#c83d4b',
-    secondary: '#f0b9bf',
-    pattern: ['1111111', '1.....1', '.1...1.', '..1.1..', '...1...', '..1.1..', '.1...1.'],
-  },
-  {
-    id: 'about-source',
-    index: 'A3',
-    title: 'SOURCE PAGE',
-    summary: '等待配置代码主页地址',
-    meta: 'EXTERNAL',
-    href: '',
-    accent: '#30343b',
-    secondary: '#c5c8cd',
-    pattern: ['..111..', '.1...1.', '1.11..1', '1...1.1', '1..11.1', '.1...1.', '..111..'],
-  },
-]
+} as const
