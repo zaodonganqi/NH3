@@ -52,9 +52,14 @@ interface PixelStyleOptions {
 /**
  * 配置 PixelArt 对象当前一次的 Canvas 渲染。
  *
- * 这里只覆盖颜色、背景和分隔线，不会重新采样来源或改变逻辑网格尺寸。
+ * 这里只覆盖颜色、逐格着色、背景和分隔线，不会重新采样来源或改变逻辑网格尺寸。
  */
-export interface PixelRenderOptions extends PixelStyleOptions {}
+export interface PixelRenderOptions extends PixelStyleOptions {
+  /**
+   * 按逻辑格覆盖前景颜色；返回空值时继续使用统一填充或来源颜色。
+   */
+  cellColor?: PixelCellColor
+}
 
 /**
  * 配置前景检测和正方形网格生成。
@@ -123,6 +128,10 @@ export interface PixelTextOptions {
    */
   color?: PixelPaint
   /**
+   * 根据文字前景格坐标提供离散颜色，用于不依赖连续渐变的像素配色。
+   */
+  cellColor?: PixelCellColor
+  /**
    * 每个 em 沿单轴允许的最大逻辑格数量，必须大于 0，默认 16；数值越大采样越细。
    */
   density?: number
@@ -188,7 +197,7 @@ const DEFAULT_PIXEL_STYLE: PixelGridOptions = {
 const DEFAULT_TEXT_FONT_SIZE = 16
 // density 表示每 em 允许使用的最大逻辑格数，而不是小字号下的固定格数。
 const DEFAULT_TEXT_DENSITY = 16
-// 文本来源格至少保持 3px，使小字号获得大于共享白线的稳定彩色方块。
+// 文本来源格至少保持 3px，为复杂中文字保留足够的逻辑网格分辨率。
 const MIN_TEXT_SOURCE_PIXEL_SIZE = 3
 // 文本掩码固定使用已验证的常规字重，避免输出缩放被误解为字形粗细。
 const TEXT_MASK_FONT_WEIGHT = 400
@@ -238,6 +247,23 @@ export interface PixelArtCell {
    */
   color: string
 }
+
+/**
+ * 描述逐格着色函数收到的网格位置和笔画边缘信息。
+ */
+export interface PixelCellPaintContext extends PixelArtCell {
+  /** 当前像素画的总列数。 */
+  columns: number
+  /** 当前像素画的总行数。 */
+  rows: number
+  /** 当前格是否与透明区域或网格边界相邻。 */
+  isEdge: boolean
+}
+
+/**
+ * 为单个前景格选择离散填色；返回空值时沿用组件统一颜色。
+ */
+export type PixelCellColor = (cell: PixelCellPaintContext) => PixelPaint | undefined
 
 /**
  * 描述一次渲染的逻辑网格和紧凑输出尺寸。
@@ -519,13 +545,32 @@ export class PixelArt {
         const targetX = layout.offsetX + x * cellStride
         // 当前前景格在目标 Canvas 中的物理纵坐标。
         const targetY = layout.offsetY + y * cellStride
+        // 四邻域存在透明格时把当前格标记为笔画边缘，供局部高光策略使用。
+        const isEdge =
+          x === 0 ||
+          x === this.columns - 1 ||
+          y === 0 ||
+          y === this.rows - 1 ||
+          this.mask[index - 1] === 0 ||
+          this.mask[index + 1] === 0 ||
+          this.mask[index - this.columns] === 0 ||
+          this.mask[index + this.columns] === 0
+        // 页面可逐格选择离散颜色，空值继续使用统一色板或来源颜色。
+        const cellColor = options.cellColor?.({
+          x,
+          y,
+          columns: this.columns,
+          rows: this.rows,
+          isEdge,
+          color: this.colors[index],
+        })
 
         fillSquare(
           context,
           targetX,
           targetY,
           layout.pixelSize,
-          fillPalette?.[index] ?? this.colors[index],
+          cellColor ?? fillPalette?.[index] ?? this.colors[index],
         )
       }
     }
@@ -688,7 +733,10 @@ export async function renderPixelText(
   // 生成与绘制共享同一份颜色和文本参数。
   const art = await pixelateText(text, options)
 
-  return art.render(canvas, { color: options.color })
+  return art.render(canvas, {
+    color: options.color,
+    cellColor: options.cellColor,
+  })
 }
 
 /**

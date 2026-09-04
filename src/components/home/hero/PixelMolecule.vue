@@ -3,26 +3,36 @@
     <div ref="positionRef" class="molecule__position">
       <div ref="flightRef" class="molecule__flight">
         <div class="molecule__idle">
-          <div ref="stageRef" class="molecule__stage">
-            <div v-for="bond in bonds" :key="bond" class="bond" :class="bond">
-              <i
-                v-for="index in 9"
-                :key="index"
-                :style="{ '--offset': `${(index - 1) * 3.05}%` }"
-              ></i>
+          <div
+            ref="interactionRef"
+            class="molecule__interaction"
+            @pointerdown="handleMoleculePointerDown"
+            @pointermove="handleMoleculePointerMove"
+            @pointerup="handleMoleculePointerEnd"
+            @pointercancel="handleMoleculePointerEnd"
+            @lostpointercapture="handleMoleculePointerEnd"
+          >
+            <div ref="stageRef" class="molecule__stage">
+              <div v-for="bond in bonds" :key="bond" class="bond" :class="bond">
+                <i
+                  v-for="index in 9"
+                  :key="index"
+                  :style="{ '--offset': `${(index - 1) * 3.05}%` }"
+                ></i>
+              </div>
+
+              <PixelAtom class="atom atom--n" element="N" />
+              <PixelAtom class="atom atom--h atom--top" element="H" />
+              <PixelAtom class="atom atom--h atom--left" element="H" />
+              <PixelAtom class="atom atom--h atom--bottom" element="H" />
             </div>
 
-            <PixelAtom class="atom atom--n" element="N" />
-            <PixelAtom class="atom atom--h atom--top" element="H" />
-            <PixelAtom class="atom atom--h atom--left" element="H" />
-            <PixelAtom class="atom atom--h atom--bottom" element="H" />
-          </div>
-
-          <div ref="coreRef" class="molecule__transition-core" aria-hidden="true">
-            <PixelPattern
-              :pattern="transitionCorePattern"
-              :palette="transitionPalette"
-            />
+            <div ref="coreRef" class="molecule__transition-core" aria-hidden="true">
+              <PixelPattern
+                :pattern="transitionCorePattern"
+                :palette="transitionPalette"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -71,6 +81,15 @@ interface PixelTrailPoint {
   // 采样点在视口中的纵坐标。
   y: number
 }
+
+// 整体分子拖拽只对桌面精细指针开放，触屏不会进入交互分支。
+const MOLECULE_DRAG_MEDIA = '(min-width: 821px) and (hover: hover) and (pointer: fine)'
+
+// 拖拽位置按四像素网格量化，与页面其他像素运动保持一致。
+const MOLECULE_DRAG_GRID = 4
+
+// 整体分子最大拖拽半径相对自身宽度保持克制比例。
+const MOLECULE_DRAG_RADIUS_RATIO = 0.28
 
 // 三组真实 DOM 像素键分别连接氮原子与三个氢原子。
 const bonds = ['bond--top', 'bond--left', 'bond--bottom']
@@ -161,6 +180,9 @@ const flightRef = ref<HTMLElement | null>(null)
 // 原始分子舞台在滚动区间内负责坍缩、旋转和重新展开。
 const stageRef = ref<HTMLElement | null>(null)
 
+// 独立交互层让整个分子共同承担用户拖拽位移和松手回弹。
+const interactionRef = ref<HTMLElement | null>(null)
+
 // 像素核心只在两种稳定形态交接的中段显示。
 const coreRef = ref<HTMLElement | null>(null)
 
@@ -203,6 +225,18 @@ let previousTrailProgress = 0
 // 当前拖尾采样方向避免前进与返回路径在同一帧混合。
 let trailDirection = 0
 
+// 当前捕获的分子拖拽指针用于过滤其他鼠标或触控输入。
+let moleculePointerId: number | undefined
+
+// 拖拽开始时的屏幕横坐标作为本次位移原点。
+let moleculeDragStartX = 0
+
+// 拖拽开始时的屏幕纵坐标作为本次位移原点。
+let moleculeDragStartY = 0
+
+// 松手后的弹性回位补间在下一次拖拽或组件卸载时终止。
+let moleculeReturnTween: gsap.core.Tween | undefined
+
 // 组件挂载后建立第二个 section 进入 1/10 到 1/3 的滚动控制器。
 onMounted(mountMoleculeTransition)
 
@@ -240,6 +274,7 @@ function mountMoleculeTransition() {
  * 销毁分子滚动过渡持有的 GSAP 状态和临时绘制资源。
  */
 function unmountMoleculeTransition() {
+  resetMoleculeDrag(true)
   moleculeScrollTrigger?.kill()
   progressTween?.kill()
   releaseMoleculeFlight()
@@ -272,6 +307,7 @@ function prepareMoleculeFlight() {
     return
   }
 
+  resetMoleculeDrag(true)
   isReturningToOrigin = false
 
   // 根节点提供原始布局矩形和右下角固定目标。
@@ -786,6 +822,134 @@ function clearTrailCanvas() {
 }
 
 /**
+ * 判断当前输入环境和分子状态是否允许拖动整个分子。
+ */
+function canDragMolecule() {
+  // 精细指针、正常动态偏好和首屏原位状态必须同时成立。
+  const desktopPointer = window.matchMedia(MOLECULE_DRAG_MEDIA).matches
+  // 减少动态效果模式不提供弹性拖拽反馈。
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  // 分子飞行或紧凑状态由页面滚动动画独占 transform。
+  const moleculeBusy = rootRef.value?.classList.contains('molecule--in-flight')
+    || rootRef.value?.classList.contains('molecule--compact')
+
+  return desktopPointer && !reducedMotion && !moleculeBusy
+}
+
+/**
+ * 捕获桌面主指针并记录整个分子的拖拽起点。
+ */
+function handleMoleculePointerDown(event: PointerEvent) {
+  if (event.button !== 0 || !canDragMolecule() || !interactionRef.value) {
+    return
+  }
+
+  event.preventDefault()
+  moleculeReturnTween?.kill()
+  moleculeReturnTween = undefined
+  moleculePointerId = event.pointerId
+  moleculeDragStartX = event.clientX
+  moleculeDragStartY = event.clientY
+  interactionRef.value.setPointerCapture(event.pointerId)
+  interactionRef.value.classList.add('molecule__interaction--dragging')
+}
+
+/**
+ * 把指针位移限制在安全半径内，并按四像素网格更新整个分子。
+ */
+function handleMoleculePointerMove(event: PointerEvent) {
+  // 仅处理当前已捕获的桌面指针，悬停和其他指针不会改变分子位置。
+  const interaction = interactionRef.value
+
+  if (!interaction || moleculePointerId !== event.pointerId) {
+    return
+  }
+
+  // 完整分子宽度决定当前视口下允许的最大拖拽半径。
+  const maxDistance = Math.min(
+    180,
+    (rootRef.value?.clientWidth ?? 0) * MOLECULE_DRAG_RADIUS_RATIO,
+  )
+  // 指针相对按下位置的原始横向位移。
+  const rawX = event.clientX - moleculeDragStartX
+  // 指针相对按下位置的原始纵向位移。
+  const rawY = event.clientY - moleculeDragStartY
+  // 当前距离用于把超出半径的坐标压回圆形边界。
+  const distance = Math.hypot(rawX, rawY)
+  // 零距离保持原值，超出边界时按比例收缩。
+  const clampRatio = distance > maxDistance && distance > 0
+    ? maxDistance / distance
+    : 1
+  // 横向位置量化到完整像素运动网格。
+  const x = Math.round(rawX * clampRatio / MOLECULE_DRAG_GRID) * MOLECULE_DRAG_GRID
+  // 纵向位置量化到完整像素运动网格。
+  const y = Math.round(rawY * clampRatio / MOLECULE_DRAG_GRID) * MOLECULE_DRAG_GRID
+  // 拖动距离只产生轻量缩放，避免改变完整分子的视觉身份。
+  const scale = 1 + Math.min(0.04, distance / Math.max(1, maxDistance) * 0.04)
+
+  gsap.set(interaction, {
+    x,
+    y,
+    rotation: x / Math.max(1, maxDistance) * 3,
+    scale,
+    force3D: true,
+  })
+}
+
+/**
+ * 结束整体分子拖拽并触发弹性回位。
+ */
+function handleMoleculePointerEnd(event: PointerEvent) {
+  if (moleculePointerId !== event.pointerId) {
+    return
+  }
+
+  resetMoleculeDrag(false)
+}
+
+/**
+ * 释放指针捕获，并立即或弹性恢复整个分子的初始状态。
+ */
+function resetMoleculeDrag(immediate: boolean) {
+  // 当前交互层可能在组件卸载阶段已经不存在。
+  const interaction = interactionRef.value
+  // 保存后再清空标识，避免释放捕获触发的事件重复回位。
+  const pointerId = moleculePointerId
+
+  moleculePointerId = undefined
+  interaction?.classList.remove('molecule__interaction--dragging')
+
+  if (interaction && pointerId !== undefined && interaction.hasPointerCapture(pointerId)) {
+    interaction.releasePointerCapture(pointerId)
+  }
+
+  moleculeReturnTween?.kill()
+  moleculeReturnTween = undefined
+
+  if (!interaction) {
+    return
+  }
+
+  if (immediate) {
+    gsap.set(interaction, { clearProps: 'transform' })
+    return
+  }
+
+  moleculeReturnTween = gsap.to(interaction, {
+    x: 0,
+    y: 0,
+    rotation: 0,
+    scale: 1,
+    duration: 0.9,
+    ease: 'elastic.out(1, 0.34)',
+    overwrite: true,
+    onComplete: () => {
+      moleculeReturnTween = undefined
+    },
+  })
+}
+
+/**
  * 使用 GSAP 平滑滚动到页面顶部，滚动进度会同步反向重组分子。
  */
 function scrollToTop() {
@@ -813,6 +977,7 @@ function scrollToTop() {
 .molecule__position,
 .molecule__flight,
 .molecule__idle,
+.molecule__interaction,
 .molecule__stage {
   position: absolute;
   inset: 0;
@@ -994,6 +1159,13 @@ function scrollToTop() {
   width: 48%;
 }
 
+.molecule__interaction {
+  pointer-events: none;
+  transform-origin: center;
+  user-select: none;
+  will-change: transform;
+}
+
 .atom--h {
   width: 24%;
 }
@@ -1076,6 +1248,18 @@ function scrollToTop() {
   }
 }
 
+@media (min-width: 821px) and (hover: hover) and (pointer: fine) {
+  .molecule__interaction {
+    cursor: grab;
+    pointer-events: auto;
+    touch-action: none;
+  }
+
+  .molecule__interaction:active {
+    cursor: grabbing;
+  }
+}
+
 @media (max-width: 820px) {
   .molecule {
     top: 430px;
@@ -1101,6 +1285,10 @@ function scrollToTop() {
 
   :global(.molecule-return-overlay::after) {
     transition: none;
+  }
+
+  .molecule__interaction {
+    pointer-events: none;
   }
 }
 </style>

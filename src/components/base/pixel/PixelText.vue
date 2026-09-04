@@ -8,6 +8,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { readPixelTextLayout, renderPixelText } from '../../../utils'
+import type { PixelCellColor } from '../../../utils'
 
 // 组件参数与文本工具保持一致，布局宽度仍由外部容器控制。
 const props = withDefaults(defineProps<{
@@ -43,6 +44,10 @@ const props = withDefaults(defineProps<{
    * 像素文字填充使用的纯色或受支持渐变；省略时继承普通 CSS 颜色。
    */
   color?: string
+  /**
+   * 根据前景格位置覆盖单个像素颜色，省略时继续使用统一填色。
+   */
+  cellColor?: PixelCellColor
   /**
    * 每个 em 沿单轴允许的最大逻辑格数量；数值越大采样越细。
    */
@@ -86,6 +91,7 @@ watch(
     props.lineHeight,
     props.textAlign,
     props.color,
+    props.cellColor,
     props.density,
   ],
   scheduleGeneration,
@@ -191,6 +197,7 @@ async function generateText() {
       lineHeight,
       textAlign,
       color: paint,
+      cellColor: props.cellColor,
       density,
       signal: renderController.signal,
     })

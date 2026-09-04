@@ -47,7 +47,7 @@ export const siteContent = {
     ariaLabel: 'NH3 首页',
   },
   navigationAriaLabel: '主导航',
-  footerText: 'CREATED BY NH3 · BUILT WITH VUE · 2026',
+  footerText: 'NH3 · 2026',
 } as const
 
 // 站点 GitHub 入口直接指向当前仓库所属账号，不创建中间页面。

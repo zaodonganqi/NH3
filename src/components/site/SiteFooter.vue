@@ -31,7 +31,7 @@ import { siteContent } from '../../config/site'
 .site-footer p {
   margin: 0;
   font-family: "Cascadia Mono", "Microsoft YaHei", monospace;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 800;
   transition:
     color var(--motion-fast) ease,

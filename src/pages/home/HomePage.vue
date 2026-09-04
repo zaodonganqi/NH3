@@ -61,6 +61,8 @@ const activeSection = ref<HomeSectionId>(homeSectionIds[0])
 
 // 保存首页 GSAP 上下文，页面卸载时统一回收动画和 ScrollTrigger。
 let animationContext: gsap.Context | undefined
+// 当前程序化滚动用于在连续导航和页面卸载时可靠终止旧任务。
+let navigationTween: gsap.core.Tween | undefined
 
 // 页面挂载后建立 GSAP 章节判定与内容入场动效。
 onMounted(async () => {
@@ -96,6 +98,10 @@ onMounted(async () => {
         '.about-heading, .about-entry',
       )
 
+      if (targets.length === 0) {
+        return
+      }
+
       gsap.fromTo(
         targets,
         { autoAlpha: 0, y: 28 },
@@ -122,6 +128,7 @@ onMounted(async () => {
 
 // 页面卸载时恢复 GSAP 状态并销毁章节判定触发器。
 onUnmounted(() => {
+  navigationTween?.kill()
   animationContext?.revert()
 })
 
@@ -207,7 +214,7 @@ function activateBlogSection() {
 }
 
 /**
- * 使用连续 GSAP 缓动滚动到首页锚点，并立即同步 Header 选中项。
+ * 使用距离受限的 GSAP 缓动滚动到首页锚点，沿途导航状态由真实章节驱动。
  */
 function scrollToSection(event: MouseEvent, sectionId?: string) {
   // 当前触发导航的锚点提供目标 hash。
@@ -228,32 +235,61 @@ function scrollToSection(event: MouseEvent, sectionId?: string) {
 
   event.preventDefault()
 
-  if (resolvedSectionId) {
-    activeSection.value = resolvedSectionId
-  }
-
   // 固定章节需要把导航目标换算为动画场景的起点或终点。
   const targetScrollY = resolveSectionScrollPosition(target, resolvedSectionId)
+  // 目标距离用于缩短跨越多个固定场景时的等待时间。
+  const scrollDistance = Math.abs(targetScrollY - window.scrollY)
+  // 动画时长随距离轻微增加但严格封顶，避免导航高亮领先画面数秒。
+  const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ? 0
+    : gsap.utils.clamp(0.36, 0.78, 0.36 + scrollDistance / window.innerHeight * 0.08)
 
-  gsap.killTweensOf(window)
-  gsap.to(window, {
-    duration: 0.72,
+  navigationTween?.kill()
+  navigationTween = gsap.to(window, {
+    duration,
     scrollTo: { y: targetScrollY, offsetY: 0 },
     ease: 'power3.inOut',
     overwrite: true,
+    onComplete: () => {
+      settleScrollTriggersAtCurrentPosition()
+
+      if (resolvedSectionId) {
+        activeSection.value = resolvedSectionId
+      }
+
+      navigationTween = undefined
+    },
+    onInterrupt: () => {
+      navigationTween = undefined
+    },
   })
+}
+
+/**
+ * 程序化长距离跳转完成后立即结束 scrub 追赶，避免画面仍停留在上一章节终态。
+ */
+function settleScrollTriggersAtCurrentPosition() {
+  ScrollTrigger.getAll().forEach((trigger) => {
+    // 无 scrub 的触发器会返回 false，仅结束真实存在的追赶补间。
+    const scrubTween = trigger.getTween()
+
+    if (scrubTween && typeof scrubTween.progress === 'function') {
+      scrubTween.progress(1)
+    }
+  })
+  ScrollTrigger.update()
 }
 
 /**
  * 根据章节是否被 ScrollTrigger 固定，解析导航应到达的真实滚动位置。
  * PROJECT 需要回到横向轨道起点，TOOL 需要直接落到四卡完整呈现的终点。
  */
-function resolveSectionScrollPosition(target: HTMLElement, sectionId?: HomeSectionId) {
+function resolveSectionScrollPosition(target: HTMLElement, sectionId?: HomeSectionId): number {
   // 固定章节的父级 spacer 保存了完整的 pin 滚动区间。
   const pinSpacer = target.parentElement
 
   if (!pinSpacer?.classList.contains('pin-spacer')) {
-    return target
+    return target.getBoundingClientRect().top + window.scrollY
   }
 
   // spacer 顶部是固定场景的起点，不受 section 内部 transform 影响。

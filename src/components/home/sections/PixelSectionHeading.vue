@@ -1,6 +1,5 @@
 <template>
   <div class="pixel-section-heading">
-    <p>{{ kicker }}</p>
     <h2>
       <PixelText
         class="pixel-section-heading__title"
@@ -21,10 +20,6 @@ import { PixelText } from '../../base/pixel'
 // 共享章节标题只接收展示文案和像素文字绘制参数。
 const props = withDefaults(defineProps<{
   /**
-   * 位于大标题上方的章节索引文案。
-   */
-  kicker: string
-  /**
    * 使用 PixelText 绘制的章节英文标题。
    */
   title: string
@@ -42,20 +37,13 @@ const props = withDefaults(defineProps<{
 })
 
 // 模板直接解构只读属性，避免重复访问 props 前缀。
-const { kicker, title, density, color } = props
+const { title, density, color } = props
 </script>
 
 <style scoped>
 .pixel-section-heading {
   position: relative;
   min-width: 0;
-}
-
-.pixel-section-heading p {
-  margin: 0 0 18px;
-  color: #95a5c7;
-  font-size: 12px;
-  font-weight: 800;
 }
 
 .pixel-section-heading h2 {

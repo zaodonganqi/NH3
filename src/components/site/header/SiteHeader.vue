@@ -230,15 +230,8 @@ function handleNavigationClick(event: MouseEvent, item: NavItem) {
 }
 
 .nav__item--active::after {
-  animation: nav-active-signal 1.4s steps(4, end) infinite;
-  opacity: 0.62;
-  transform: scaleX(0.72);
-}
-
-@keyframes nav-active-signal {
-  0%,
-  100% { background-position: 0 0; }
-  50% { background-position: 8px 0; }
+  opacity: 0.84;
+  transform: scaleX(0.86);
 }
 
 .nav__item:hover,

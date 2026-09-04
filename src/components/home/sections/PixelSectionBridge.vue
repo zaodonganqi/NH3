@@ -197,7 +197,7 @@ function animateRelayPacket(packet: HTMLElement, index: number) {
   z-index: 3;
   isolation: isolate;
   width: 100%;
-  height: clamp(240px, 22vh, 320px);
+  height: clamp(180px, 18vh, 240px);
   overflow: visible;
   pointer-events: none;
 }
@@ -370,7 +370,7 @@ function animateRelayPacket(packet: HTMLElement, index: number) {
 
 @media (max-width: 820px) {
   .pixel-section-bridge {
-    height: clamp(116px, 14vh, 176px);
+    height: clamp(96px, 12vh, 144px);
   }
 
   .pixel-section-bridge::before {

@@ -82,7 +82,6 @@
               :style="resolveFragmentStyle(fragment)"
             >
               <div class="about-profile-fragment__body">
-                <span class="about-profile-fragment__label">{{ fragment.label }}</span>
                 <strong class="about-profile-fragment__value">{{ fragment.value }}</strong>
               </div>
             </article>
@@ -116,7 +115,6 @@
               :style="resolveFragmentStyle(fragment)"
             >
               <div class="about-profile-fragment__body">
-                <span class="about-profile-fragment__label">{{ fragment.label }}</span>
                 <strong class="about-profile-fragment__value">{{ fragment.value }}</strong>
               </div>
             </article>
@@ -130,8 +128,6 @@
               :density="10"
               text-align="center"
             />
-            <p class="about-profile__role">{{ aboutContent.profile.role }}</p>
-            <p class="about-profile__statement">{{ aboutContent.profile.statement }}</p>
             <nav class="about-profile__contacts" aria-label="联系方式">
               <a
                 v-for="contact in aboutContent.profile.contacts"
@@ -142,7 +138,6 @@
                 rel="noopener noreferrer"
                 :style="{ '--contact-accent': contact.accent }"
               >
-                <span>{{ contact.label }}</span>
                 <strong>{{ contact.value }}</strong>
               </a>
             </nav>
@@ -250,6 +245,12 @@ const profileNameGradient = computed(() => `linear-gradient(90deg, ${aboutConten
 let animationContext: gsap.Context | undefined
 // 窗口连续变化时只在下一动画帧重建一次目标坐标。
 let resizeFrame: number | undefined
+// 最近一次有效重建使用的视口宽度用于识别断点和横竖屏变化。
+let lastViewportWidth = 0
+// 最近一次有效重建使用的视口高度用于过滤移动端地址栏伸缩。
+let lastViewportHeight = 0
+// 移动端只有超过该高度变化量才重新测量完整裂解轨迹。
+const MOBILE_HEIGHT_REBUILD_THRESHOLD = 120
 
 /**
  * 把 About 配置调色板暴露为组件内部统一使用的 CSS 变量。
@@ -1034,6 +1035,23 @@ function scheduleSceneRebuild() {
 
   resizeFrame = window.requestAnimationFrame(() => {
     resizeFrame = undefined
+    // 当前视口宽度变化意味着断点、横竖屏或真实布局发生变化。
+    const viewportWidth = Math.round(window.innerWidth)
+    // 当前视口高度用于区分地址栏伸缩和真实窗口调整。
+    const viewportHeight = Math.round(window.innerHeight)
+    // 两像素阈值过滤浏览器重复派发的等价尺寸事件。
+    const widthChanged = Math.abs(viewportWidth - lastViewportWidth) >= 2
+    // 移动端只响应明显高度变化，避免滚动期间反复销毁和重建时间线。
+    const heightChanged = viewportWidth > RHYTHM_MOBILE_BREAKPOINT
+      ? Math.abs(viewportHeight - lastViewportHeight) >= 2
+      : Math.abs(viewportHeight - lastViewportHeight) >= MOBILE_HEIGHT_REBUILD_THRESHOLD
+
+    if (!widthChanged && !heightChanged) {
+      return
+    }
+
+    lastViewportWidth = viewportWidth
+    lastViewportHeight = viewportHeight
     rebuildAboutScene()
   })
 }
@@ -1043,6 +1061,8 @@ onMounted(async () => {
   await nextTick()
   await document.fonts.ready
 
+  lastViewportWidth = Math.round(window.innerWidth)
+  lastViewportHeight = Math.round(window.innerHeight)
   rebuildAboutScene()
   window.addEventListener('resize', scheduleSceneRebuild)
 })
@@ -1501,13 +1521,6 @@ onUnmounted(() => {
     translate var(--motion-medium) var(--motion-step);
 }
 
-.about-profile-fragment__label {
-  margin-bottom: 10px;
-  color: var(--fragment-accent);
-  font-size: 12px;
-  line-height: 1;
-}
-
 .about-profile-fragment__value {
   overflow-wrap: anywhere;
   color: #4f5f7d;
@@ -1595,22 +1608,6 @@ onUnmounted(() => {
     translate var(--motion-medium) var(--motion-step);
 }
 
-.about-profile__role {
-  margin: 12px 0 0;
-  color: #657694;
-  font-size: 15px;
-  line-height: 1.4;
-  text-align: center;
-}
-
-.about-profile__statement {
-  margin: 7px 0 0;
-  color: #95a5c7;
-  font-size: 12px;
-  line-height: 1.4;
-  text-align: center;
-}
-
 .about-profile__contacts {
   display: flex;
   margin-top: 18px;
@@ -1676,13 +1673,7 @@ onUnmounted(() => {
   }
 }
 
-.about-profile-contact span {
-  font-size: 10px;
-  line-height: 1;
-}
-
 .about-profile-contact strong {
-  margin-top: 7px;
   font-size: 14px;
   font-weight: 400;
   line-height: 1.15;
@@ -1811,11 +1802,6 @@ onUnmounted(() => {
     box-shadow: 6px 6px 0 var(--fragment-accent);
   }
 
-  .about-profile-fragment__label {
-    margin-bottom: 7px;
-    font-size: 10px;
-  }
-
   .about-profile-fragment__value {
     font-size: 14px;
   }
@@ -1830,6 +1816,7 @@ onUnmounted(() => {
   .about-stage {
     --about-nav-clearance: 82px;
 
+    height: 100svh;
     min-height: 620px;
   }
 
@@ -1848,8 +1835,8 @@ onUnmounted(() => {
   }
 
   .about-scroll-step--profile {
-    height: 96vh;
-    min-height: 700px;
+    height: 118vh;
+    min-height: 760px;
   }
 
   .about-intro {
@@ -1927,11 +1914,6 @@ onUnmounted(() => {
     transform: none;
   }
 
-  .about-profile-fragment__label {
-    margin-bottom: 5px;
-    font-size: 9px;
-  }
-
   .about-profile-fragment__value {
     font-size: 11px;
     line-height: 1.3;
@@ -1948,16 +1930,6 @@ onUnmounted(() => {
     font-size: 40px;
   }
 
-  .about-profile__role {
-    margin-top: 6px;
-    font-size: 11px;
-  }
-
-  .about-profile__statement {
-    margin-top: 3px;
-    font-size: 9px;
-  }
-
   .about-profile__contacts {
     width: 100%;
     margin-top: 9px;
@@ -1972,12 +1944,7 @@ onUnmounted(() => {
     box-shadow: 4px 4px 0 color-mix(in srgb, var(--contact-accent) 24%, #ffffff);
   }
 
-  .about-profile-contact span {
-    font-size: 8px;
-  }
-
   .about-profile-contact strong {
-    margin-top: 4px;
     font-size: 10px;
   }
 }

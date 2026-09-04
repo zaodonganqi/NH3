@@ -12,11 +12,6 @@
     }"
     @click="handleClick"
   >
-    <header>
-      <span>{{ item.index }}</span>
-      <span>{{ item.meta }}</span>
-    </header>
-
     <div class="pixel-link-card__body">
       <PixelPattern
         class="pixel-link-card__icon"
@@ -29,8 +24,8 @@
       </div>
     </div>
 
-    <footer>
-      <span>{{ item.href ? homeCardLabels.openNewPage : homeCardLabels.noTarget }}</span>
+    <footer v-if="item.href">
+      <span>{{ homeCardLabels.openNewPage }}</span>
       <PixelPattern
         class="pixel-link-card__arrow"
         :pattern="arrowPattern"
@@ -80,7 +75,7 @@ function handleClick(event: MouseEvent) {
   display: grid;
   min-width: 0;
   min-height: 218px;
-  grid-template-rows: 34px 1fr 34px;
+  grid-template-rows: 1fr 34px;
   color: #71809e;
   background:
     linear-gradient(135deg, transparent 0 46%, color-mix(in srgb, var(--card-secondary) 42%, transparent) 46% 54%, transparent 54%) 100% 100% / 260% 260%,
@@ -126,7 +121,8 @@ function handleClick(event: MouseEvent) {
 }
 
 .pixel-link-card--disabled {
-  cursor: not-allowed;
+  grid-template-rows: 1fr;
+  cursor: default;
 }
 
 .pixel-link-card--disabled:hover {
@@ -136,7 +132,6 @@ function handleClick(event: MouseEvent) {
   transform: none;
 }
 
-.pixel-link-card header,
 .pixel-link-card footer {
   display: flex;
   min-width: 0;
@@ -150,10 +145,6 @@ function handleClick(event: MouseEvent) {
     background-color var(--motion-fast) ease,
     color var(--motion-fast) ease,
     translate var(--motion-fast) var(--motion-step);
-}
-
-.pixel-link-card header {
-  border-bottom: 1px solid #dce4f4;
 }
 
 .pixel-link-card footer {
@@ -221,13 +212,6 @@ function handleClick(event: MouseEvent) {
     transform: translate(3px, -3px);
   }
 
-  .pixel-link-card:hover header,
-  .pixel-link-card:focus-visible header {
-    color: var(--card-accent);
-    background-color: color-mix(in srgb, var(--card-secondary) 28%, #ffffff);
-    translate: 2px 0;
-  }
-
   .pixel-link-card:hover footer,
   .pixel-link-card:focus-visible footer {
     color: var(--card-accent);
@@ -276,7 +260,6 @@ function handleClick(event: MouseEvent) {
 
 @media (prefers-reduced-motion: reduce) {
   .pixel-link-card,
-  .pixel-link-card header,
   .pixel-link-card footer,
   .pixel-link-card__body strong,
   .pixel-link-card__body p,

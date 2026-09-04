@@ -29,7 +29,7 @@
         <span>{{ blogItems.length.toString().padStart(2, '0') }} {{ homeSections.blog.entriesLabel }}</span>
       </header>
 
-      <div class="blog-window__scroll" @scroll="handleBlogScroll">
+      <div class="blog-window__scroll">
         <div class="blog-window__scrollline" aria-hidden="true">
           <span
             class="blog-window__scroll-marker"
@@ -53,7 +53,7 @@
 
       <footer class="blog-window__status">
         <span>{{ homeSections.blog.scrollLabel }}</span>
-        <span>{{ scrollProgress.toString().padStart(2, '0') }}% {{ homeSections.blog.readLabel }}</span>
+        <span>{{ scrollProgress.toString().padStart(2, '0') }}%</span>
       </footer>
     </div>
   </section>
@@ -104,105 +104,91 @@ const fieldState = {
   scroll: 0,
 }
 
+// 每张文章卡片只允许存在一条装配时间线，离场重置前必须先停止旧动画。
+const cardTimelines = new Map<HTMLElement, gsap.core.Timeline>()
+
 // 页面卸载时销毁 GSAP、观察器和 Canvas 资源。
 let animationContext: gsap.Context | undefined
 let resizeObserver: ResizeObserver | undefined
 let visibilityObserver: IntersectionObserver | undefined
 
 /**
- * 根据文章容器的真实滚动距离更新阅读比例。
+ * 为单张文章卡创建唯一的装配时间线，避免快速滚动时多条动画争用样式。
  */
-function handleBlogScroll(event: Event) {
-  const target = event.currentTarget
-
-  if (!(target instanceof HTMLElement)) {
+function playBlogCardEntrance(card: HTMLElement, delay = 0) {
+  if (card.dataset.blogRevealed === 'true') {
     return
   }
 
-  const scrollableDistance = target.scrollHeight - target.clientHeight
-  scrollProgress.value = scrollableDistance > 0
-    ? Math.round((target.scrollTop / scrollableDistance) * 100)
-    : 0
+  cardTimelines.get(card)?.kill()
+  card.dataset.blogRevealed = 'true'
 
-  revealVisibleCards(target)
-}
+  // 卡片内部的像素图标在主体稳定后按正交尺度展开。
+  const icon = card.querySelector<HTMLElement>('.pixel-link-card__icon')
+  // 顶栏和可用底栏从左向右展开，强化像素窗口装配感。
+  const chrome = card.querySelectorAll<HTMLElement>('footer')
+  // 当前卡片的唯一时间线会在离场重置和组件卸载时被回收。
+  const timeline = gsap.timeline({ delay })
 
-/**
- * 在文章卡片进入内部滚动容器时播放完整的 GSAP 入场序列。
- */
-function revealVisibleCards(scrollContainer: HTMLElement) {
-  // 当前滚动容器的视口边界用于判断卡片是否真正进入可见区域。
-  const viewportBounds = scrollContainer.getBoundingClientRect()
-  // 尚未播放的文章卡片按 DOM 顺序参与本轮延迟编排。
-  const hiddenCards = Array.from(
-    scrollContainer.querySelectorAll<HTMLElement>('.blog-row:not([data-blog-revealed="true"])'),
-  )
+  timeline
+    .to(card, {
+      x: 0,
+      y: 0,
+      scale: 1,
+      autoAlpha: 1,
+      duration: 0.72,
+      ease: 'back.out(1.55)',
+    }, 0)
 
-  hiddenCards.forEach((card, index) => {
-    // 卡片边界需要与内部容器视口相交，避免提前播放屏幕外动画。
-    const cardBounds = card.getBoundingClientRect()
-    const isVisible = cardBounds.bottom > viewportBounds.top + 24
-      && cardBounds.top < viewportBounds.bottom - 24
+  if (chrome.length > 0) {
+    timeline.to(chrome, {
+      scaleX: 1,
+      duration: 0.38,
+      stagger: 0.06,
+      ease: 'steps(6)',
+    }, 0.16)
+  }
 
-    if (!isVisible) {
-      return
-    }
+  if (icon) {
+    timeline.to(icon, {
+      scale: 1,
+      autoAlpha: 1,
+      duration: 0.48,
+      ease: 'steps(7)',
+    }, 0.24)
+  }
 
-    card.dataset.blogRevealed = 'true'
-
-    // 卡片主体先大幅滑入并回弹，建立明确的列表出现动作。
-    const cardTimeline = gsap.timeline({ delay: index * 0.12 })
-    // 卡片内部的像素图标在主体稳定后按正交尺度展开。
-    const icon = card.querySelector<HTMLElement>('.pixel-link-card__icon')
-    // 顶栏和底栏从左向右展开，强化像素窗口装配感。
-    const chrome = card.querySelectorAll<HTMLElement>('header, footer')
-
-    cardTimeline
-      .to(card, {
-        x: 0,
-        y: 0,
-        scale: 1,
-        autoAlpha: 1,
-        duration: 0.92,
-        ease: 'back.out(1.75)',
-      }, 0)
-      .to(chrome, {
-        scaleX: 1,
-        duration: 0.48,
-        stagger: 0.08,
-        ease: 'steps(6)',
-      }, 0.2)
-
-    if (icon) {
-      cardTimeline.to(icon, {
-        scale: 1,
-        autoAlpha: 1,
-        duration: 0.68,
-        ease: 'back.out(2.2)',
-      }, 0.3)
-    }
-  })
+  cardTimelines.set(card, timeline)
 }
 
 /**
  * 重置文章卡片及其内部元素，确保章节再次进入时重新播放装配动画。
  */
 function resetCardEntrances(cards: NodeListOf<HTMLElement>) {
+  // 移动端使用更短的起始位移，避免自然页面滚动产生可见横向空白。
+  const entryX = window.matchMedia('(max-width: 820px)').matches ? -72 : -180
+
   cards.forEach((card) => {
+    cardTimelines.get(card)?.kill()
+    cardTimelines.delete(card)
     delete card.dataset.blogRevealed
 
     // 卡片主体回到容器左下方，等待下一次进入可见区域。
-    gsap.set(card, { x: -180, y: 104, scale: 0.84, autoAlpha: 0 })
+    gsap.set(card, { x: entryX, y: 96, scale: 0.86, autoAlpha: 0 })
     // 像素图标回到正交收缩状态。
     gsap.set(card.querySelector<HTMLElement>('.pixel-link-card__icon'), {
       scale: 0,
       autoAlpha: 0,
     })
-    // 顶栏和底栏重新收拢到左侧，等待横向装配。
-    gsap.set(card.querySelectorAll<HTMLElement>('header, footer'), {
-      scaleX: 0,
-      transformOrigin: 'left center',
-    })
+    // 可用链接的底栏重新收拢到左侧，等待横向装配。
+    const chrome = card.querySelectorAll<HTMLElement>('footer')
+
+    if (chrome.length > 0) {
+      gsap.set(chrome, {
+        scaleX: 0,
+        transformOrigin: 'left center',
+      })
+    }
   })
 }
 
@@ -474,8 +460,6 @@ onMounted(() => {
     const letterTargets = section.querySelectorAll<HTMLElement>('.blog-heading__letter')
     // 文章卡片在进入内部滚动视口前保持隐藏状态。
     const cardTargets = section.querySelectorAll<HTMLElement>('.blog-row')
-    // 内部滚动容器提供文章卡片的真实可见范围。
-    const scrollContainer = section.querySelector<HTMLElement>('.blog-window__scroll')
     // Canvas 进入视口时才允许推进相位，避免后台持续消耗资源。
     const phaseTween = gsap.to(fieldState, {
       phase: 1,
@@ -541,9 +525,6 @@ onMounted(() => {
 
       introTimeline.play(0)
 
-      if (scrollContainer) {
-        revealVisibleCards(scrollContainer)
-      }
     }
 
     // 背景滚动进度独立覆盖整个章节，不参与内容入场时机判定。
@@ -554,8 +535,24 @@ onMounted(() => {
       invalidateOnRefresh: true,
       onUpdate: (trigger) => {
         fieldState.scroll = trigger.progress
+        scrollProgress.value = Math.round(trigger.progress * 100)
         drawField(context)
       },
+    })
+
+    cardTargets.forEach((card) => {
+      ScrollTrigger.create({
+        trigger: card,
+        start: 'top 88%',
+        end: 'bottom 12%',
+        onEnter: () => playBlogCardEntrance(card),
+        onEnterBack: () => playBlogCardEntrance(card),
+        onRefresh: (trigger) => {
+          if (trigger.isActive) {
+            playBlogCardEntrance(card)
+          }
+        },
+      })
     })
 
     // 入场触发器绑定真实文章窗口，避免整页被上游 pin 覆盖时提前播放。
@@ -606,6 +603,8 @@ onMounted(() => {
 
 // BLOG 卸载时停止相位动画并释放观察器。
 onUnmounted(() => {
+  cardTimelines.forEach((timeline) => timeline.kill())
+  cardTimelines.clear()
   animationContext?.revert()
   resizeObserver?.disconnect()
   visibilityObserver?.disconnect()
@@ -683,11 +682,11 @@ onUnmounted(() => {
 .blog-window {
   display: grid;
   width: 100%;
-  height: min(68vh, 740px);
+  height: auto;
   min-height: 560px;
   grid-column: 1;
   grid-row: 1;
-  grid-template-rows: 46px minmax(0, 1fr) 42px;
+  grid-template-rows: 46px auto 42px;
   border: 1px solid #aebfe2;
   background: rgb(255 255 255 / 92%);
   box-shadow: 14px 14px 0 #dfe7f7, -8px -8px 0 #edf2fc;
@@ -767,8 +766,7 @@ onUnmounted(() => {
   padding: 24px 30px 34px 54px;
   align-content: start;
   gap: 24px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  overflow: visible;
   scrollbar-color: #6e87d9 #eaf0fb;
   scrollbar-width: thin;
   background: rgb(251 253 255 / 92%);
@@ -967,14 +965,15 @@ onUnmounted(() => {
   }
 
   .blog-window {
-    height: 460px;
+    height: auto;
     min-height: 0;
-    grid-template-rows: 42px minmax(0, 1fr) 38px;
+    grid-template-rows: 42px auto 38px;
   }
 
   .blog-window__scroll {
     padding: 18px 22px 28px 42px;
     gap: 18px;
+    overflow: visible;
   }
 
   .blog-window__scrollline {
@@ -997,10 +996,6 @@ onUnmounted(() => {
 @media (max-width: 480px) {
   .blog-heading__title {
     font-size: 58px;
-  }
-
-  .blog-window {
-    height: 430px;
   }
 
   .blog-window__bar,

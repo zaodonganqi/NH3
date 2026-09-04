@@ -12,7 +12,6 @@
       <div class="project-intro">
         <PixelSectionHeading
           class="project-heading"
-          :kicker="homeSections.project.kicker"
           :title="homeSections.project.title"
           :density="14"
         />
@@ -35,11 +34,6 @@
           :color="item.secondary"
         />
 
-        <div class="project-slide__frame" aria-hidden="true">
-          <span>{{ item.meta }}</span>
-          <span>{{ String(index + 1).padStart(2, '0') }} / {{ projectItems.length.toString().padStart(2, '0') }}</span>
-        </div>
-
         <PixelLinkCard
           class="project-window"
           :item="item"
@@ -58,9 +52,8 @@
     </div>
 
     <div class="project-progress" aria-hidden="true">
-      <span>{{ homeSections.project.progressLabel }}</span>
       <i><b ref="progressRef"></b></i>
-      <span>{{ projectItems.length.toString().padStart(2, '0') }} / {{ projectItems.length.toString().padStart(2, '0') }}</span>
+      <span>项目 {{ String(currentProjectIndex + 1).padStart(2, '0') }}</span>
     </div>
   </section>
 </template>
@@ -87,6 +80,8 @@ const sectionRef = ref<HTMLElement | null>(null)
 const trackRef = ref<HTMLElement | null>(null)
 // 底部像素进度条显示整个横向项目流的推进比例。
 const progressRef = ref<HTMLElement | null>(null)
+// 当前项目索引与横向轨道中最接近视口中心的卡片保持一致。
+const currentProjectIndex = ref(0)
 // GSAP 媒体查询负责在桌面、移动端和减少动态模式之间正确回收状态。
 let projectMedia: ReturnType<typeof gsap.matchMedia> | undefined
 
@@ -141,6 +136,8 @@ onMounted(async () => {
       let cachedTravelDistance = 1
       // 缓存的纵向映射距离避免 onUpdate 期间触发布局读取。
       let cachedScrollDistance = window.innerHeight * 2.8
+      // 每张卡片进入视口中心时对应的主时间线进度只在刷新阶段测量。
+      let slideFocusProgress: number[] = []
       // 滚动停止计时器用于恢复卡片 hover，运动期间避免阴影反复重绘。
       let hoverResumeCall: gsap.core.Tween | undefined
 
@@ -153,6 +150,12 @@ onMounted(async () => {
           window.innerHeight * 2.8,
           cachedTravelDistance * 1.22,
         )
+        slideFocusProgress = slides.map((slide) => gsap.utils.clamp(
+          0,
+          1,
+          (slide.offsetLeft + slide.offsetWidth / 2 - window.innerWidth / 2)
+            / cachedTravelDistance,
+        ))
 
         for (const slide of slides) {
           slideEntryProgressMap.set(
@@ -209,6 +212,15 @@ onMounted(async () => {
         const currentScroll = trigger.scroll()
         // 与上一帧的滚动差值决定本轮属于前进、静止还是反向。
         const scrollDelta = currentScroll - lastHorizontalScroll
+        // 与当前横向进度最接近的卡片决定底部真实索引。
+        const activeIndex = slideFocusProgress.reduce((closestIndex, focusProgress, index) => (
+          Math.abs(focusProgress - trigger.progress)
+            < Math.abs((slideFocusProgress[closestIndex] ?? 0) - trigger.progress)
+            ? index
+            : closestIndex
+        ), 0)
+
+        currentProjectIndex.value = activeIndex
 
         if (scrollDelta < 0) {
           pendingReverseDistance += Math.abs(scrollDelta)
@@ -275,17 +287,11 @@ onMounted(async () => {
 
       // 大标题 Canvas 在 Project 接近视口时执行独立的像素切入。
       const introTitle = section.querySelector<HTMLElement>('.project-heading h2')
-      // 标题上方索引从反方向进入，增强标题区的结构变化。
-      const introKicker = section.querySelector<HTMLElement>('.project-heading p')
       // 标题下方彩色像素轨依次装配，而不是随标题整体淡入。
       const introRailPixels = gsap.utils.toArray<HTMLElement>('.project-heading span i', section)
 
-      if (introTitle && introKicker) {
+      if (introTitle) {
         // 标题节点在进入视口前就固定为起始态，避免首次触发时从默认可见状态闪回。
-        gsap.set(introKicker, {
-          autoAlpha: 0,
-          x: 168,
-        })
         gsap.set(introTitle, {
           autoAlpha: 0,
           x: -280,
@@ -309,12 +315,6 @@ onMounted(async () => {
         })
 
         introTimeline
-          .to(introKicker, {
-            autoAlpha: 1,
-            x: 0,
-            duration: 0.46,
-            ease: 'power3.out',
-          }, 0)
           .to(introTitle, {
             autoAlpha: 1,
             x: 0,
@@ -434,14 +434,9 @@ onMounted(async () => {
         const slideTitle = slide.querySelector<HTMLElement>('.pixel-link-card__body strong')
         // 项目摘要与标题使用相邻节奏进入，避免卡体中只剩孤立文本。
         const slideSummary = slide.querySelector<HTMLElement>('.pixel-link-card__body p')
-        // 外框索引和内部状态文字分别延迟进入，增加 02 与 03 的信息层动画。
-        const slideMeta = gsap.utils.toArray<HTMLElement>(
-          '.project-slide__frame span, .pixel-link-card header, .pixel-link-card footer',
-          slide,
-        )
         // 卡片周围的小像素在卡片稳定后向外展开，强化纯像素冲击感。
         const slidePixels = gsap.utils.toArray<HTMLElement>('.project-slide__pixels i', slide)
-        // 每张卡都拥有与 01 同等级别的编号、卡体、图标、标题和元数据装配时间线。
+        // 每张卡都拥有编号、卡体、图标和标题装配时间线。
         const detailTimeline = gsap.timeline({
           paused: true,
           defaults: { force3D: true },
@@ -519,18 +514,6 @@ onMounted(async () => {
             ease: 'power3.out',
           }, 0.23)
         }
-
-        gsap.set(slideMeta, {
-          autoAlpha: 0,
-          y: 32 * verticalDirection,
-        })
-        detailTimeline.to(slideMeta, {
-          autoAlpha: 1,
-          y: 0,
-          duration: 0.42,
-          stagger: 0.035,
-          ease: 'power3.out',
-        }, 0.28)
 
         // 卡片与碎片在 ScrollTrigger 建立前先写入起始态，首次播放不会闪回默认布局。
         gsap.set(slide, {
@@ -765,19 +748,6 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-.project-slide__frame {
-  position: absolute;
-  top: 18px;
-  right: 22px;
-  left: 22px;
-  display: flex;
-  justify-content: space-between;
-  color: #8290ae;
-  font-size: 10px;
-  font-weight: 800;
-  transition: color var(--motion-fast) ease;
-}
-
 .project-window {
   z-index: 1;
   width: min(100%, 760px);
@@ -873,7 +843,7 @@ onUnmounted(() => {
   bottom: 28px;
   left: max(28px, 4vw);
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 18px;
   align-items: center;
   color: #68799e;
@@ -928,10 +898,6 @@ onUnmounted(() => {
   .project-slide:hover::before,
   .project-slide:hover::after {
     background-position: 18px 0;
-  }
-
-  .project-slide:hover .project-slide__frame {
-    color: var(--project-accent);
   }
 
   .project-slide:hover .project-slide__pixels {
@@ -1030,7 +996,6 @@ onUnmounted(() => {
   .project-slide,
   .project-slide::before,
   .project-slide::after,
-  .project-slide__frame,
   .project-slide__pixels {
     transition: none;
   }

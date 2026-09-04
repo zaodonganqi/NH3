@@ -24,19 +24,17 @@
       </span>
     </div>
 
-    <div class="tool-portal-card__content">
-      <header>
-        <span>{{ item.meta }}</span>
-        <span>{{ item.href ? homeCardLabels.ready : homeCardLabels.unassigned }}</span>
-      </header>
-
+    <div
+      class="tool-portal-card__content"
+      :class="{ 'tool-portal-card__content--static': !item.href }"
+    >
       <div class="tool-portal-card__copy">
         <strong>{{ item.title }}</strong>
         <p>{{ item.summary }}</p>
       </div>
 
-      <footer>
-        <span>{{ item.href ? homeCardLabels.openNewPage : homeCardLabels.noTarget }}</span>
+      <footer v-if="item.href">
+        <span>{{ homeCardLabels.openNewPage }}</span>
         <PixelPattern
           class="tool-portal-card__arrow"
           :pattern="arrowPattern"
@@ -201,12 +199,15 @@ function handleClick(event: MouseEvent) {
   display: grid;
   min-width: 0;
   padding: 18px 22px;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: 1fr auto;
   background: #ffffff;
   z-index: 1;
 }
 
-.tool-portal-card header,
+.tool-portal-card__content--static {
+  grid-template-rows: 1fr;
+}
+
 .tool-portal-card footer {
   display: flex;
   min-width: 0;
@@ -222,7 +223,6 @@ function handleClick(event: MouseEvent) {
   align-self: center;
 }
 
-.tool-portal-card__content header,
 .tool-portal-card__copy,
 .tool-portal-card__content footer {
   will-change: transform, opacity;
@@ -270,7 +270,7 @@ function handleClick(event: MouseEvent) {
 }
 
 .tool-portal-card--disabled {
-  cursor: not-allowed;
+  cursor: default;
 }
 
 @media (hover: hover) and (pointer: fine) {

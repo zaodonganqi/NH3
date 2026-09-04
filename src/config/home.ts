@@ -18,8 +18,6 @@ export interface HomeSectionLinkItem {
   title: string
   // 首页仅展示的一行摘要，不承载详情正文。
   summary: string
-  // 卡片右上角显示的分类或状态。
-  meta: string
   // 点击后打开的新页面地址；空字符串表示尚未配置。
   href: string
   // 图标和交互边框使用的主题纯色。
@@ -39,6 +37,21 @@ export interface HeroCodeEntry {
   // 对象属性值以字符串形式展示在代码简介右侧。
   value: string
 }
+
+// Hero 标题沿用首页原有蓝青粉紫体系，并提高主色之间的明度区分。
+const heroTitleColors = {
+  blue: '#4967dc',
+  indigo: '#7378e6',
+  teal: '#169f98',
+  mint: '#71d0c8',
+  pink: '#e779ad',
+  lilac: '#a17bd4',
+} as const
+
+// 标题、标语符号和行动链接共用同一套首页色谱。
+export const heroTitlePalette = {
+  ...heroTitleColors,
+} as const
 
 /**
  * 描述 About 滚动叙事中的一段中心文字。
@@ -80,8 +93,6 @@ export interface AboutRhythmBar {
 export interface AboutProfileFragment {
   // 稳定标识用于像素重组目标映射。
   id: string
-  // 信息块顶部的短标签。
-  label: string
   // 信息块展示的主要内容。
   value: string
   // 信息块位于头像左侧或右侧。
@@ -100,8 +111,6 @@ export interface AboutProfileFragment {
 export interface AboutContactLink {
   // 稳定标识用于链接渲染和动画交错。
   id: string
-  // 联系入口的短标签。
-  label: string
   // 页面中直接显示的联系值。
   value: string
   // 点击后打开的真实地址。
@@ -113,7 +122,6 @@ export interface AboutContactLink {
 // Hero 的标题、行动入口、代码简介和终端文案集中在此处维护。
 export const heroContent = {
   id: 'home',
-  eyebrow: 'SOFTWARE ENGINEER / EXPLORER',
   title: '躁动的\n氨气',
   taglineSymbol: '♥',
   tagline: 'Learn. Create. Repeat.',
@@ -142,21 +150,17 @@ export const heroContent = {
     returnAriaLabel: '返回页面顶部',
     returnTitle: '返回顶部',
   },
-  scrollCue: 'SCROLL DOWN',
 } as const
 
 // 各首页 section 的标题、索引栏和状态文案集中在此处维护。
 export const homeSections = {
   project: {
     id: 'project',
-    kicker: 'PROJECT / 关联项目',
     title: 'PROJECT',
-    nextLabel: 'NEXT',
-    progressLabel: 'PROJECT_STREAM',
+    nextLabel: '继续探索',
   },
   tool: {
     id: 'tool',
-    kicker: 'TOOL / 前端工具',
     title: 'TOOL',
     ariaLabel: '工具页面入口',
   },
@@ -164,14 +168,12 @@ export const homeSections = {
     id: 'blog',
     title: 'BLOG',
     ariaLabel: '文章页面索引',
-    streamLabel: 'ARTICLE_STREAM',
-    entriesLabel: 'ENTRIES',
-    scrollLabel: 'SCROLL INDEX',
-    readLabel: 'READ',
+    streamLabel: '文章',
+    entriesLabel: '篇',
+    scrollLabel: '浏览进度',
   },
   about: {
     id: 'about',
-    kicker: 'ABOUT / 关于',
     title: 'ABOUT',
     ariaLabel: '个人信息页面索引',
   },
@@ -193,10 +195,7 @@ export type HomeSectionId = (typeof homeSectionIds)[number]
 
 // 项目、工具、文章和个人入口卡片共享的交互状态文案。
 export const homeCardLabels = {
-  openNewPage: 'OPEN NEW PAGE',
-  noTarget: 'NO TARGET',
-  ready: 'READY',
-  unassigned: 'UNASSIGNED',
+  openNewPage: '查看详情',
 } as const
 
 // 项目 section 的配置项只提供索引信息和目标页面地址。
@@ -204,9 +203,8 @@ export const projectItems: HomeSectionLinkItem[] = [
   {
     id: 'project-01',
     index: '01',
-    title: 'PROJECT NODE',
-    summary: '等待配置关联项目页面',
-    meta: 'UNASSIGNED',
+    title: '像素文字系统',
+    summary: '将文字与图像转换为可复用的像素网格',
     href: '',
     accent: '#c66f2f',
     secondary: '#f3cfad',
@@ -215,9 +213,8 @@ export const projectItems: HomeSectionLinkItem[] = [
   {
     id: 'project-02',
     index: '02',
-    title: 'SCRIPT NODE',
-    summary: '等待配置脚本项目页面',
-    meta: 'UNASSIGNED',
+    title: '滚动叙事系统',
+    summary: '让章节、固定场景与回看状态保持一致',
     href: '',
     accent: '#2f8257',
     secondary: '#b7e2ca',
@@ -226,9 +223,8 @@ export const projectItems: HomeSectionLinkItem[] = [
   {
     id: 'project-03',
     index: '03',
-    title: 'LAB NODE',
-    summary: '等待配置实验项目页面',
-    meta: 'UNASSIGNED',
+    title: '二维像素场',
+    summary: '用 WebGL 承载高密度图形与动态反馈',
     href: '',
     accent: '#247d88',
     secondary: '#b7e4e6',
@@ -241,9 +237,8 @@ export const toolItems: HomeSectionLinkItem[] = [
   {
     id: 'tool-01',
     index: '01',
-    title: 'TOOL ENTRY',
-    summary: '等待配置工具页面',
-    meta: 'UTILITY',
+    title: '前端效率工具',
+    summary: '聚焦日常前端流程与重复工作的轻量工具',
     href: '',
     accent: '#5470d2',
     secondary: '#e7ecff',
@@ -252,9 +247,8 @@ export const toolItems: HomeSectionLinkItem[] = [
   {
     id: 'tool-02',
     index: '02',
-    title: 'PIXEL ENTRY',
-    summary: '等待配置像素工具页面',
-    meta: 'CANVAS',
+    title: '像素生成实验',
+    summary: '研究文字、图像与 Canvas 的像素化表达',
     href: '',
     accent: '#2b8c8c',
     secondary: '#ddf4f1',
@@ -263,9 +257,8 @@ export const toolItems: HomeSectionLinkItem[] = [
   {
     id: 'tool-03',
     index: '03',
-    title: 'CODE ENTRY',
-    summary: '等待配置代码工具页面',
-    meta: 'SOURCE',
+    title: '交互代码实验',
+    summary: '沉淀交互、动画与工程实现中的可复用方案',
     href: '',
     accent: '#7658b8',
     secondary: '#ede5fb',
@@ -274,9 +267,8 @@ export const toolItems: HomeSectionLinkItem[] = [
   {
     id: 'tool-04',
     index: '04',
-    title: 'DATA ENTRY',
-    summary: '等待配置数据工具页面',
-    meta: 'BUFFER',
+    title: '数据工作台',
+    summary: '探索结构化数据的整理、转换与可视化',
     href: '',
     accent: '#c95f78',
     secondary: '#fbe5ea',
@@ -291,7 +283,6 @@ export const blogItems: HomeSectionLinkItem[] = [
     index: '001',
     title: 'PIXEL TEXT PIPELINE',
     summary: '让 Canvas 栅格化保留文字的笔画边界',
-    meta: 'CANVAS / NOTE',
     href: '',
     accent: '#2f8257',
     secondary: '#b7e2ca',
@@ -302,7 +293,6 @@ export const blogItems: HomeSectionLinkItem[] = [
     index: '002',
     title: 'SCROLL STATE MACHINE',
     summary: '处理 GSAP 进入、离开与回滚时的状态切换',
-    meta: 'GSAP / MOTION',
     href: '',
     accent: '#247d88',
     secondary: '#b7e4e6',
@@ -313,7 +303,6 @@ export const blogItems: HomeSectionLinkItem[] = [
     index: '003',
     title: 'WEBGL PIXEL FIELD',
     summary: '用 Three.js 管理二维像素层的性能与深度',
-    meta: 'THREE / WEBGL',
     href: '',
     accent: '#c83d4b',
     secondary: '#f0b9bf',
@@ -395,19 +384,17 @@ export const aboutContent = {
       fallback: 'NH3',
     },
     name: 'NH3',
-    role: 'SOFTWARE ENGINEER / EXPLORER',
-    statement: 'LEARN. CREATE. REPEAT.',
     fragments: [
-      { id: 'nature', label: 'NATURE', value: 'CURIOUS', side: 'left', shift: -34, accent: aboutPalette.blue, background: aboutPalette.blueLight },
-      { id: 'focus', label: 'FOCUS', value: 'VUE / CANVAS / MOTION', side: 'left', shift: 18, accent: aboutPalette.teal, background: aboutPalette.tealLight },
-      { id: 'mode', label: 'MODE', value: 'LEARN / CREATE / REPEAT', side: 'left', shift: -10, accent: aboutPalette.purple, background: aboutPalette.purpleLight },
-      { id: 'passion', label: 'PASSION', value: 'BUILDING', side: 'right', shift: 30, accent: aboutPalette.pink, background: aboutPalette.pinkLight },
-      { id: 'energy', label: 'ENERGY', value: 'UNLIMITED', side: 'right', shift: -20, accent: aboutPalette.blue, background: aboutPalette.blueLight },
-      { id: 'status', label: 'STATUS', value: 'OPEN & ITERATING', side: 'right', shift: 12, accent: aboutPalette.teal, background: aboutPalette.tealLight },
+      { id: 'nature', value: '保持好奇', side: 'left', shift: -34, accent: aboutPalette.blue, background: aboutPalette.blueLight },
+      { id: 'focus', value: 'VUE · CANVAS · MOTION', side: 'left', shift: 18, accent: aboutPalette.teal, background: aboutPalette.tealLight },
+      { id: 'mode', value: '持续学习，持续创造', side: 'left', shift: -10, accent: aboutPalette.purple, background: aboutPalette.purpleLight },
+      { id: 'passion', value: '享受构建', side: 'right', shift: 30, accent: aboutPalette.pink, background: aboutPalette.pinkLight },
+      { id: 'energy', value: '保持投入', side: 'right', shift: -20, accent: aboutPalette.blue, background: aboutPalette.blueLight },
+      { id: 'status', value: '开放，持续迭代', side: 'right', shift: 12, accent: aboutPalette.teal, background: aboutPalette.tealLight },
     ] satisfies AboutProfileFragment[],
     contacts: [
-      { id: 'github', label: 'GITHUB', value: '@zaodonganqi', href: 'https://github.com/zaodonganqi', accent: '#30343b' },
-      { id: 'repository', label: 'SOURCE', value: 'NH3', href: 'https://github.com/zaodonganqi/NH3', accent: aboutPalette.purple },
+      { id: 'github', value: '@zaodonganqi', href: 'https://github.com/zaodonganqi', accent: '#30343b' },
+      { id: 'repository', value: '查看源码', href: 'https://github.com/zaodonganqi/NH3', accent: aboutPalette.purple },
     ] satisfies AboutContactLink[],
   },
 } as const

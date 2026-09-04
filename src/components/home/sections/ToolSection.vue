@@ -8,7 +8,6 @@
 
     <PixelSectionHeading
       class="tool-heading"
-      :kicker="homeSections.tool.kicker"
       :title="homeSections.tool.title"
       :density="14"
     />
@@ -114,8 +113,6 @@ onUnmounted(() => {
  * 创建桌面端固定滚动场景，让四张卡逐张撞入并拼成不对称矩阵。
  */
 function createDesktopToolScene(section: HTMLElement) {
-  // 标题索引从主标题相反方向进入。
-  const headingKicker = section.querySelector<HTMLElement>('.tool-heading p')
   // 大标题在固定场景开始时承担第一次强位移。
   const headingTitle = section.querySelector<HTMLElement>('.tool-heading h2')
   // 标题像素轨在标题稳定后逐格装配。
@@ -154,18 +151,6 @@ function createDesktopToolScene(section: HTMLElement) {
     onUpdateParams: [depthState],
   }, 0)
 
-  if (headingKicker) {
-    sceneTimeline.fromTo(headingKicker, {
-      autoAlpha: 0,
-      x: 220,
-    }, {
-      autoAlpha: 1,
-      x: 0,
-      duration: 0.12,
-      ease: 'power3.out',
-    }, 0)
-  }
-
   if (headingTitle) {
     sceneTimeline.fromTo(headingTitle, {
       autoAlpha: 0,
@@ -192,7 +177,7 @@ function createDesktopToolScene(section: HTMLElement) {
   }, 0.14)
 
   // 四张卡使用不同起点依次装入最终矩阵。
-  const cardStartTimes = [0.1, 0.27, 0.41, 0.57]
+  const cardStartTimes = [0.06, 0.22, 0.38, 0.54]
 
   cardShells.forEach((shell, index) => {
     addDesktopCardAssembly(
@@ -312,7 +297,7 @@ function addDesktopCardAssembly(
  */
 function createMobileToolScene(section: HTMLElement) {
   // 标题和像素轨在 section 进入视口时完成一次滚动装配。
-  const headingTargets = section.querySelectorAll('.tool-heading p, .tool-heading h2, .tool-heading span i')
+  const headingTargets = section.querySelectorAll('.tool-heading h2, .tool-heading span i')
   // 每张移动端卡片根据自身位置独立触发，避免在屏幕外提前完成。
   const cardShells = gsap.utils.toArray<HTMLElement>('.tool-card-shell', section)
 
@@ -512,7 +497,7 @@ function resolveDesktopCardMotion(index: number): ToolCardMotion {
  * 给桌面固定场景提供足够滚动距离，使四次撞入都能被清楚看到。
  */
 function resolveDesktopScrollDistance() {
-  return Math.max(window.innerHeight * 2.8, 2400)
+  return Math.max(window.innerHeight * 2.4, 2000)
 }
 </script>
 
