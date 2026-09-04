@@ -82,10 +82,17 @@ function handleClick(event: MouseEvent) {
   min-height: 218px;
   grid-template-rows: 34px 1fr 34px;
   color: #71809e;
-  background: #ffffff;
+  background:
+    linear-gradient(135deg, transparent 0 46%, color-mix(in srgb, var(--card-secondary) 42%, transparent) 46% 54%, transparent 54%) 100% 100% / 260% 260%,
+    #ffffff;
   border: 1px solid #cbd6ed;
   box-shadow: 8px 8px 0 var(--card-secondary);
   text-decoration: none;
+  transition:
+    background-position var(--motion-medium) var(--motion-step),
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-medium) var(--motion-step),
+    transform var(--motion-medium) var(--motion-step);
 }
 
 .pixel-link-card::before,
@@ -111,6 +118,7 @@ function handleClick(event: MouseEvent) {
 
 .pixel-link-card:hover,
 .pixel-link-card:focus-visible {
+  background-position: 0 0;
   border-color: var(--card-accent);
   box-shadow: 12px 12px 0 var(--card-secondary);
   outline: none;
@@ -122,6 +130,7 @@ function handleClick(event: MouseEvent) {
 }
 
 .pixel-link-card--disabled:hover {
+  background-position: 100% 100%;
   border-color: #cbd6ed;
   box-shadow: 8px 8px 0 var(--card-secondary);
   transform: none;
@@ -137,6 +146,10 @@ function handleClick(event: MouseEvent) {
   color: #8897b5;
   font-size: 10px;
   font-weight: 800;
+  transition:
+    background-color var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    translate var(--motion-fast) var(--motion-step);
 }
 
 .pixel-link-card header {
@@ -158,6 +171,11 @@ function handleClick(event: MouseEvent) {
 
 .pixel-link-card__icon {
   width: 72px;
+  transform-origin: center;
+  transition:
+    filter var(--motion-fast) ease,
+    scale var(--motion-medium) var(--motion-step),
+    translate var(--motion-medium) var(--motion-step);
 }
 
 .pixel-link-card__body strong {
@@ -167,6 +185,9 @@ function handleClick(event: MouseEvent) {
   font-size: 15px;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition:
+    filter var(--motion-fast) ease,
+    translate var(--motion-fast) var(--motion-step);
 }
 
 .pixel-link-card__body p {
@@ -177,10 +198,64 @@ function handleClick(event: MouseEvent) {
   line-height: 1.7;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition:
+    color var(--motion-fast) ease,
+    translate var(--motion-fast) var(--motion-step);
 }
 
 .pixel-link-card__arrow {
   width: 20px;
+  transition: transform var(--motion-fast) var(--motion-step);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pixel-link-card:hover .pixel-link-card__icon,
+  .pixel-link-card:focus-visible .pixel-link-card__icon {
+    filter: drop-shadow(5px 5px 0 var(--card-secondary));
+    scale: 1.04 !important;
+    translate: -4px -4px !important;
+  }
+
+  .pixel-link-card:hover .pixel-link-card__arrow,
+  .pixel-link-card:focus-visible .pixel-link-card__arrow {
+    transform: translate(3px, -3px);
+  }
+
+  .pixel-link-card:hover header,
+  .pixel-link-card:focus-visible header {
+    color: var(--card-accent);
+    background-color: color-mix(in srgb, var(--card-secondary) 28%, #ffffff);
+    translate: 2px 0;
+  }
+
+  .pixel-link-card:hover footer,
+  .pixel-link-card:focus-visible footer {
+    color: var(--card-accent);
+    background-color: color-mix(in srgb, var(--card-secondary) 18%, #ffffff);
+    translate: -2px 0;
+  }
+
+  .pixel-link-card:hover .pixel-link-card__body strong,
+  .pixel-link-card:focus-visible .pixel-link-card__body strong {
+    filter: drop-shadow(3px 3px 0 var(--card-secondary));
+    translate: 4px -2px;
+  }
+
+  .pixel-link-card:hover .pixel-link-card__body p,
+  .pixel-link-card:focus-visible .pixel-link-card__body p {
+    color: #64728f;
+    translate: 7px 1px;
+  }
+
+  .pixel-link-card--disabled:hover .pixel-link-card__icon {
+    filter: none;
+    scale: 1 !important;
+    translate: 0 -4px !important;
+  }
+
+  .pixel-link-card--disabled:hover .pixel-link-card__arrow {
+    transform: none;
+  }
 }
 
 @media (max-width: 480px) {
@@ -196,6 +271,23 @@ function handleClick(event: MouseEvent) {
 
   .pixel-link-card__icon {
     width: 56px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pixel-link-card,
+  .pixel-link-card header,
+  .pixel-link-card footer,
+  .pixel-link-card__body strong,
+  .pixel-link-card__body p,
+  .pixel-link-card__icon,
+  .pixel-link-card__arrow {
+    transition: none;
+  }
+
+  .pixel-link-card__icon {
+    scale: none !important;
+    translate: none !important;
   }
 }
 </style>

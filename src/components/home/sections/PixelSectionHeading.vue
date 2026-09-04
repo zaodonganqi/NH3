@@ -65,6 +65,9 @@ const { kicker, title, density, color } = props
 
 .pixel-section-heading__title {
   width: 100%;
+  transition:
+    filter var(--motion-fast) ease,
+    translate var(--motion-medium) var(--motion-step);
 }
 
 .pixel-section-heading__rail {
@@ -78,6 +81,9 @@ const { kicker, title, density, color } = props
   aspect-ratio: 1;
   background: #6580ec;
   box-shadow: inset 0 0 0 1px #ffffff;
+  transition:
+    filter var(--motion-fast) ease,
+    translate var(--motion-medium) var(--motion-step);
 }
 
 .pixel-section-heading__rail i:nth-child(3n + 2) {
@@ -88,6 +94,26 @@ const { kicker, title, density, color } = props
   background: #eda5cb;
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .pixel-section-heading:hover .pixel-section-heading__title {
+    filter: drop-shadow(7px 7px 0 rgb(89 119 224 / 10%));
+    translate: 4px -3px;
+  }
+
+  .pixel-section-heading:hover .pixel-section-heading__rail i:nth-child(3n + 1) {
+    translate: 0 -7px;
+  }
+
+  .pixel-section-heading:hover .pixel-section-heading__rail i:nth-child(3n + 2) {
+    filter: drop-shadow(3px 3px 0 rgb(101 201 196 / 18%));
+    translate: 0 4px;
+  }
+
+  .pixel-section-heading:hover .pixel-section-heading__rail i:nth-child(3n) {
+    translate: 0 -3px;
+  }
+}
+
 @media (max-width: 820px) {
   .pixel-section-heading {
     width: min(100%, 520px);
@@ -95,6 +121,13 @@ const { kicker, title, density, color } = props
 
   .pixel-section-heading__rail {
     margin-top: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pixel-section-heading__title,
+  .pixel-section-heading__rail i {
+    transition: none;
   }
 }
 </style>

@@ -105,18 +105,39 @@ function handleNavigationClick(event: MouseEvent, item: NavItem) {
   bottom: -34px;
   left: -40px;
   content: "";
-  background: linear-gradient(
-    180deg,
-    rgb(255 255 255 / 99%) 0%,
-    rgb(255 255 255 / 92%) 38%,
-    rgb(255 255 255 / 58%) 68%,
-    rgb(255 255 255 / 0%) 100%
-  );
-  backdrop-filter: blur(18px) saturate(1.18);
+  background:
+    repeating-linear-gradient(90deg, transparent 0 11px, rgb(103 127 220 / 3%) 11px 12px),
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 99%) 0%,
+      rgb(255 255 255 / 94%) 38%,
+      rgb(255 255 255 / 64%) 68%,
+      rgb(255 255 255 / 0%) 100%
+    );
   mask-image: linear-gradient(180deg, #000 0%, #000 68%, transparent 100%);
   pointer-events: none;
-  -webkit-backdrop-filter: blur(18px) saturate(1.18);
   -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 68%, transparent 100%);
+}
+
+.site-header::after {
+  position: absolute;
+  right: 0;
+  bottom: -7px;
+  width: clamp(120px, 19vw, 320px);
+  height: 3px;
+  content: "";
+  background: repeating-linear-gradient(90deg, #8fa2e7 0 5px, transparent 5px 9px);
+  opacity: 0.28;
+  pointer-events: none;
+  transform-origin: right center;
+  transition:
+    opacity var(--motion-fast) ease,
+    transform var(--motion-medium) var(--motion-step);
+}
+
+.site-header:hover::after {
+  opacity: 0.72;
+  transform: scaleX(1.16);
 }
 
 .brand {
@@ -124,6 +145,25 @@ function handleNavigationClick(event: MouseEvent, item: NavItem) {
   display: block;
   width: 118px;
   text-decoration: none;
+  transform-origin: left center;
+  transition:
+    filter var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-step);
+}
+
+.brand::after {
+  position: absolute;
+  right: 3px;
+  bottom: -8px;
+  width: 18px;
+  height: 4px;
+  content: "";
+  background: repeating-linear-gradient(90deg, #5872ee 0 4px, transparent 4px 7px);
+  opacity: 0;
+  transform: translateX(-10px);
+  transition:
+    opacity var(--motion-instant) ease,
+    transform var(--motion-fast) var(--motion-step);
 }
 
 .brand__name {
@@ -148,7 +188,24 @@ function handleNavigationClick(event: MouseEvent, item: NavItem) {
   gap: 9px;
   color: #9aadd4;
   text-decoration: none;
-  transition: color 180ms ease, transform 180ms ease;
+  transition:
+    color var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-step);
+}
+
+.nav__item::after {
+  position: absolute;
+  right: 8px;
+  bottom: -8px;
+  left: 8px;
+  height: 4px;
+  content: "";
+  background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 8px);
+  opacity: 0;
+  transform: scaleX(0.35);
+  transition:
+    opacity var(--motion-instant) ease,
+    transform var(--motion-medium) var(--motion-step);
 }
 
 .nav__icon {
@@ -156,6 +213,10 @@ function handleNavigationClick(event: MouseEvent, item: NavItem) {
   width: 40px;
   height: 40px;
   place-items: center;
+  transform-origin: center bottom;
+  transition:
+    filter var(--motion-fast) ease,
+    transform var(--motion-medium) var(--motion-step);
 }
 
 
@@ -168,14 +229,59 @@ function handleNavigationClick(event: MouseEvent, item: NavItem) {
   color: var(--nav-active-color);
 }
 
+.nav__item--active::after {
+  animation: nav-active-signal 1.4s steps(4, end) infinite;
+  opacity: 0.62;
+  transform: scaleX(0.72);
+}
+
+@keyframes nav-active-signal {
+  0%,
+  100% { background-position: 0 0; }
+  50% { background-position: 8px 0; }
+}
+
 .nav__item:hover,
 .nav__item:focus-visible {
   color: var(--nav-hover-color);
   transform: translateY(-3px);
 }
 
+.nav__item:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+}
+
+.nav__item:hover::after,
+.nav__item:focus-visible::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.nav__item:hover .nav__icon,
+.nav__item:focus-visible .nav__icon {
+  filter: drop-shadow(4px 4px 0 color-mix(in srgb, currentColor 18%, transparent));
+  transform: translateY(-4px) scale(1.08);
+}
+
 .nav__item:active {
   color: var(--nav-active-color);
+  transform: translateY(0) scale(0.96);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .brand:hover,
+  .brand:focus-visible {
+    filter: drop-shadow(5px 5px 0 rgb(99 128 238 / 12%));
+    outline: none;
+    transform: translateY(-2px);
+  }
+
+  .brand:hover::after,
+  .brand:focus-visible::after {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 
@@ -211,7 +317,13 @@ function handleNavigationClick(event: MouseEvent, item: NavItem) {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .brand,
+  .brand::after,
+  .nav__icon,
+  .nav__item::after,
+  .site-header::after,
   .nav__item {
+    animation: none;
     transition: none;
   }
 }

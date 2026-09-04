@@ -375,7 +375,7 @@ function prepareMoleculeFlight() {
     )
     .fromTo(
       core,
-      { autoAlpha: 0, rotation: -72, scale: 0.35 },
+      { autoAlpha: 0, rotation: -90, scale: 0.35 },
       {
         autoAlpha: 1,
         duration: 0.14,
@@ -939,6 +939,20 @@ function scrollToTop() {
   content: '';
 }
 
+:global(.molecule-return-overlay::after) {
+  position: absolute;
+  z-index: -1;
+  inset: -12%;
+  content: '';
+  border: 0.18rem dashed #9bade0;
+  border-radius: 50%;
+  opacity: 0;
+  scale: 0.84;
+  transition:
+    opacity var(--motion-fast) ease,
+    scale var(--motion-medium) var(--motion-step);
+}
+
 :global(.molecule-return-overlay > .pixel-pattern) {
   position: relative;
   z-index: 1;
@@ -952,6 +966,17 @@ function scrollToTop() {
 
 :global(.molecule-return-overlay--interactive:hover) {
   translate: 0 -0.45vmin;
+}
+
+:global(.molecule-return-overlay--interactive:hover::after),
+:global(.molecule-return-overlay:focus-visible::after) {
+  opacity: 0.8;
+  scale: 1;
+}
+
+:global(.molecule-return-overlay--interactive:active) {
+  scale: 0.94;
+  translate: 0 0;
 }
 
 :global(.molecule-return-overlay:focus-visible) {
@@ -1036,11 +1061,11 @@ function scrollToTop() {
 @keyframes molecule-idle {
   0%,
   100% {
-    transform: translate3d(0, 5px, 0) rotate(-0.35deg);
+    transform: translate3d(0, 5px, 0);
   }
 
   50% {
-    transform: translate3d(0, -7px, 0) rotate(0.35deg);
+    transform: translate3d(0, -7px, 0);
   }
 }
 
@@ -1071,6 +1096,10 @@ function scrollToTop() {
   .molecule__idle,
   :global(.molecule-return-overlay) {
     animation: none;
+    transition: none;
+  }
+
+  :global(.molecule-return-overlay::after) {
     transition: none;
   }
 }

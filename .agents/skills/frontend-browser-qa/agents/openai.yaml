@@ -1,0 +1,4 @@
+interface:
+  display_name: "Frontend Browser QA"
+  short_description: "Manual in-app browser validation for frontend pages"
+  default_prompt: "Use $frontend-browser-qa to manually validate this frontend page in the Codex in-app browser."

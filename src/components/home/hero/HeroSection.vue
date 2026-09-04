@@ -149,6 +149,10 @@ function syncMoleculeField(progress: number) {
   font-size: 12px;
   font-weight: 800;
   line-height: 1.4;
+  transform-origin: left center;
+  transition:
+    filter var(--motion-fast) ease,
+    transform var(--motion-medium) var(--motion-step);
 }
 
 .hero-signature :deep(.pixel-pattern) {
@@ -199,6 +203,10 @@ function syncMoleculeField(progress: number) {
   color: #8997cc;
   font-size: clamp(10px, 0.9vw, 14px);
   line-height: 1.9;
+  transform-origin: right center;
+  transition:
+    filter var(--motion-fast) ease,
+    transform var(--motion-medium) var(--motion-step);
 }
 
 .code-note__lines {
@@ -235,6 +243,9 @@ function syncMoleculeField(progress: number) {
 .code-line {
   display: block;
   white-space: nowrap;
+  transition:
+    filter var(--motion-fast) ease,
+    translate var(--motion-fast) var(--motion-step);
 }
 
 .code-line--entry {
@@ -260,14 +271,45 @@ function syncMoleculeField(progress: number) {
   gap: 18px;
   color: #5f78ed;
   font-size: 13px;
+  transition:
+    background-color var(--motion-fast) ease,
+    filter var(--motion-fast) ease,
+    transform var(--motion-medium) var(--motion-step);
+}
+
+.terminal::before {
+  position: absolute;
+  inset: 8px;
+  content: "";
+  background: linear-gradient(180deg, transparent 0 46%, rgb(101 128 236 / 8%) 46% 54%, transparent 54%);
+  background-size: 100% 18px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-8px);
+  transition:
+    opacity var(--motion-fast) ease,
+    transform var(--motion-medium) var(--motion-step);
 }
 
 .terminal strong { color: #4fcdbf; font-weight: 700; }
+
+.terminal strong::after {
+  display: inline-block;
+  width: 7px;
+  height: 11px;
+  margin-left: 6px;
+  content: "";
+  background: currentColor;
+  animation: terminal-cursor 920ms steps(2, end) infinite;
+  opacity: 0.82;
+  vertical-align: -1px;
+}
 .terminal :deep(.pixel-pattern) { position: absolute; right: 24px; bottom: 18px; width: 28px; }
 
 .terminal__edge {
   position: absolute;
   background: repeating-linear-gradient(90deg, #c7d5f5 0 4px, transparent 4px 8px);
+  transition: background-position var(--motion-medium) var(--motion-step);
 }
 
 .terminal__edge--top,
@@ -293,6 +335,7 @@ function syncMoleculeField(progress: number) {
   display: grid;
   justify-items: center;
   gap: 13px;
+  animation: scroll-cue-step 1.8s steps(4, end) infinite;
   will-change: opacity;
 }
 
@@ -302,6 +345,66 @@ function syncMoleculeField(progress: number) {
 }
 
 .scroll-cue :deep(.pixel-pattern) { width: 42px; }
+
+@media (hover: hover) and (pointer: fine) {
+  .hero-signature:hover {
+    filter: drop-shadow(4px 4px 0 rgb(143 197 243 / 18%));
+    transform: translate(4px, -4px);
+  }
+
+  .code-note:hover {
+    filter: drop-shadow(5px 5px 0 rgb(95 120 237 / 10%));
+    transform: translate(-4px, -3px);
+  }
+
+  .code-note:hover .code-line--entry:nth-child(2n) {
+    filter: drop-shadow(3px 3px 0 rgb(95 120 237 / 8%));
+    translate: 5px 0;
+  }
+
+  .code-note:hover .code-line--entry:nth-child(2n + 1) {
+    translate: -2px 0;
+  }
+
+  .terminal:hover {
+    background-color: rgb(248 251 255 / 86%);
+    filter: drop-shadow(7px 7px 0 rgb(95 120 237 / 8%));
+    transform: translateY(-4px);
+  }
+
+  .terminal:hover::before {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .terminal:hover strong::after {
+    animation-duration: 680ms;
+    opacity: 1;
+  }
+
+  .terminal:hover .terminal__edge--top,
+  .terminal:hover .terminal__edge--bottom {
+    background-position: 12px 0;
+  }
+
+  .terminal:hover .terminal__edge--left,
+  .terminal:hover .terminal__edge--right {
+    background-position: 0 12px;
+  }
+}
+
+@keyframes scroll-cue-step {
+  0%,
+  100% { transform: translateY(0); }
+  50% { transform: translateY(8px); }
+}
+
+@keyframes terminal-cursor {
+  0%,
+  44% { opacity: 1; }
+  45%,
+  100% { opacity: 0; }
+}
 
 @media (max-width: 1100px) {
   .hero-copy { top: 31%; left: 6%; }
@@ -329,5 +432,19 @@ function syncMoleculeField(progress: number) {
   .code-note { display: none; }
   .terminal { bottom: 4%; left: 8%; width: 62%; min-height: 94px; padding: 16px; gap: 12px; font-size: 10px; }
   .terminal :deep(.pixel-pattern) { width: 22px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-signature,
+  .code-note,
+  .terminal,
+  .terminal::before,
+  .terminal__edge,
+  .terminal strong::after,
+  .code-line,
+  .scroll-cue__motion {
+    animation: none;
+    transition: none;
+  }
 }
 </style>

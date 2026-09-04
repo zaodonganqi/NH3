@@ -87,6 +87,12 @@ const packetMotions = [
 const bridgeRef = ref<HTMLElement | null>(null)
 // GSAP 上下文负责统一销毁循环补间并恢复元素状态。
 let animationContext: gsap.Context | undefined
+// 当前缓冲带的循环补间只在进入视口时恢复，避免离屏持续占用主线程。
+let bridgeAnimations: gsap.core.Tween[] = []
+// 可见性观察器负责暂停完全离场的桥接动画。
+let visibilityObserver: IntersectionObserver | undefined
+// 当前缓冲带是否与扩展视口相交，用于统一计算运行状态。
+let bridgeVisible = false
 
 // 组件挂载后仅在允许动态效果时启动像素数据交接动画。
 onMounted(() => {
@@ -98,14 +104,50 @@ onMounted(() => {
   }
 
   // 上下文回调只创建当前缓冲带内部的循环补间。
-  animationContext = gsap.context(() => createBridgeAnimations(bridge), bridge)
+  animationContext = gsap.context(() => {
+    bridgeAnimations = createBridgeAnimations(bridge)
+  }, bridge)
+
+  visibilityObserver = new IntersectionObserver(handleBridgeVisibility, {
+    rootMargin: '20% 0px',
+  })
+  visibilityObserver.observe(bridge)
+  document.addEventListener('visibilitychange', syncBridgeAnimationState)
 })
 
 // 组件卸载时停止循环并清除 GSAP 写入的行内变换。
 onUnmounted(() => {
+  visibilityObserver?.disconnect()
+  document.removeEventListener('visibilitychange', syncBridgeAnimationState)
   animationContext?.revert()
+  bridgeAnimations = []
+  visibilityObserver = undefined
   animationContext = undefined
 })
+
+/**
+ * 根据缓冲带与扩展视口的交集同步局部循环动画状态。
+ */
+function handleBridgeVisibility(entries: IntersectionObserverEntry[]) {
+  bridgeVisible = entries.some((entry) => entry.isIntersecting)
+  syncBridgeAnimationState()
+}
+
+/**
+ * 页面隐藏或缓冲带离场时暂停全部循环补间，回到前台后从原进度恢复。
+ */
+function syncBridgeAnimationState() {
+  // 只有页面可见且缓冲带接近视口时才允许循环补间推进。
+  const shouldAnimate = bridgeVisible && !document.hidden
+
+  bridgeAnimations.forEach((animation) => {
+    if (shouldAnimate) {
+      animation.resume()
+    } else {
+      animation.pause()
+    }
+  })
+}
 
 /**
  * 创建轨道流动与数据包步进动画，保持所有位移落在整像素节奏上。
@@ -116,14 +158,18 @@ function createBridgeAnimations(bridge: HTMLElement) {
   // 断开的轨道共享相同循环周期，形成稳定的数据流方向。
   const rails = gsap.utils.toArray<HTMLElement>('.pixel-section-bridge__rail', bridge)
 
-  packets.forEach(animateRelayPacket)
+  // 返回的补间集合由可见性观察器统一暂停和恢复。
+  const animations = packets.map(animateRelayPacket)
 
-  gsap.to(rails, {
+  animations.push(gsap.to(rails, {
     backgroundPositionX: '84px',
     duration: 14,
     ease: 'steps(12)',
+    paused: true,
     repeat: -1,
-  })
+  }))
+
+  return animations
 }
 
 /**
@@ -133,11 +179,12 @@ function animateRelayPacket(packet: HTMLElement, index: number) {
   // 当前数据包使用与其视觉位置对应的固定运动参数。
   const motion = packetMotions[index] ?? packetMotions[0]
 
-  gsap.to(packet, {
+  return gsap.to(packet, {
     x: motion.x,
     duration: motion.duration,
     ease: 'steps(7)',
     force3D: true,
+    paused: true,
     repeat: -1,
     yoyo: true,
   })

@@ -101,6 +101,27 @@ function handleClick(event: MouseEvent) {
     10px 10px 0 var(--tool-secondary),
     15px 15px 0 #dfe5f2;
   text-decoration: none;
+  transition:
+    box-shadow var(--motion-medium) var(--motion-step),
+    outline-width var(--motion-instant) ease,
+    transform var(--motion-medium) var(--motion-step);
+}
+
+.tool-portal-card::after {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  bottom: 0;
+  left: -18%;
+  width: 16%;
+  content: '';
+  background: repeating-linear-gradient(90deg, transparent 0 5px, rgb(255 255 255 / 48%) 5px 10px);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-120%);
+  transition:
+    opacity var(--motion-instant) ease,
+    transform 480ms steps(8, end);
 }
 
 .tool-portal-card__visual {
@@ -109,11 +130,15 @@ function handleClick(event: MouseEvent) {
   min-width: 0;
   overflow: hidden;
   place-items: center;
-  background: var(--tool-secondary);
+  background:
+    linear-gradient(135deg, transparent 0 44%, rgb(255 255 255 / 42%) 44% 56%, transparent 56%) 100% 100% / 260% 260%,
+    var(--tool-secondary);
   border-right: 2px solid #ffffff;
   box-shadow: inset 0 0 0 1px #ffffff;
   transform-origin: left center;
   will-change: transform, opacity;
+  transition: background-position var(--motion-medium) var(--motion-step);
+  z-index: 1;
 }
 
 .tool-portal-card__number {
@@ -129,6 +154,11 @@ function handleClick(event: MouseEvent) {
 .tool-portal-card__icon {
   width: 84px;
   will-change: transform, opacity;
+  transform-origin: center;
+  transition:
+    filter var(--motion-fast) ease,
+    scale var(--motion-medium) var(--motion-step),
+    translate var(--motion-medium) var(--motion-step);
 }
 
 .tool-portal-card__markers {
@@ -137,14 +167,29 @@ function handleClick(event: MouseEvent) {
   bottom: 12px;
   display: flex;
   gap: 3px;
+  transition: transform var(--motion-fast) var(--motion-step);
 }
 
 .tool-portal-card__markers i {
+  position: relative;
   width: 8px;
   aspect-ratio: 1;
   background: var(--tool-accent);
   box-shadow: inset 0 0 0 1px #ffffff;
   will-change: transform, opacity;
+}
+
+.tool-portal-card__markers i::after {
+  position: absolute;
+  inset: 2px;
+  content: '';
+  background: #ffffff;
+  opacity: 0.58;
+  scale: 0.62;
+  transition:
+    opacity var(--motion-fast) ease,
+    scale var(--motion-fast) var(--motion-step),
+    translate var(--motion-fast) var(--motion-step);
 }
 
 .tool-portal-card__markers i:nth-child(2n) {
@@ -158,6 +203,7 @@ function handleClick(event: MouseEvent) {
   padding: 18px 22px;
   grid-template-rows: auto 1fr auto;
   background: #ffffff;
+  z-index: 1;
 }
 
 .tool-portal-card header,
@@ -190,6 +236,9 @@ function handleClick(event: MouseEvent) {
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition:
+    filter var(--motion-fast) ease,
+    translate var(--motion-fast) var(--motion-step);
 }
 
 .tool-portal-card__copy p {
@@ -200,10 +249,14 @@ function handleClick(event: MouseEvent) {
   line-height: 1.7;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition:
+    color var(--motion-fast) ease,
+    translate var(--motion-fast) var(--motion-step);
 }
 
 .tool-portal-card__arrow {
   width: 22px;
+  transition: transform var(--motion-fast) var(--motion-step);
 }
 
 .tool-portal-card:not(.tool-portal-card--disabled):hover,
@@ -218,6 +271,71 @@ function handleClick(event: MouseEvent) {
 
 .tool-portal-card--disabled {
   cursor: not-allowed;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tool-portal-card:hover .tool-portal-card__visual,
+  .tool-portal-card:focus-visible .tool-portal-card__visual {
+    background-position: 0 0;
+  }
+
+  .tool-portal-card:hover::after,
+  .tool-portal-card:focus-visible::after {
+    opacity: 1;
+    transform: translateX(790%);
+  }
+
+  .tool-portal-card:hover .tool-portal-card__icon,
+  .tool-portal-card:focus-visible .tool-portal-card__icon {
+    filter: drop-shadow(6px 6px 0 rgb(255 255 255 / 72%));
+    scale: 1.05 !important;
+    translate: 0 -4px !important;
+  }
+
+  .tool-portal-card:hover .tool-portal-card__number,
+  .tool-portal-card:focus-visible .tool-portal-card__number {
+    filter: drop-shadow(4px 4px 0 rgb(255 255 255 / 72%));
+  }
+
+  .tool-portal-card:hover .tool-portal-card__markers,
+  .tool-portal-card:focus-visible .tool-portal-card__markers {
+    transform: translateY(-4px);
+  }
+
+  .tool-portal-card:hover .tool-portal-card__markers i:nth-child(odd)::after,
+  .tool-portal-card:focus-visible .tool-portal-card__markers i:nth-child(odd)::after {
+    opacity: 1;
+    scale: 1;
+    translate: 0 -2px;
+  }
+
+  .tool-portal-card:hover .tool-portal-card__markers i:nth-child(even)::after,
+  .tool-portal-card:focus-visible .tool-portal-card__markers i:nth-child(even)::after {
+    opacity: 0.82;
+    scale: 0.84;
+    translate: 0 2px;
+  }
+
+  .tool-portal-card:hover .tool-portal-card__arrow,
+  .tool-portal-card:focus-visible .tool-portal-card__arrow {
+    transform: translate(3px, -3px);
+  }
+
+  .tool-portal-card:hover .tool-portal-card__copy strong,
+  .tool-portal-card:focus-visible .tool-portal-card__copy strong {
+    filter: drop-shadow(4px 4px 0 var(--tool-secondary));
+    translate: 6px -2px;
+  }
+
+  .tool-portal-card:hover .tool-portal-card__copy p,
+  .tool-portal-card:focus-visible .tool-portal-card__copy p {
+    color: #53627f;
+    translate: 10px 1px;
+  }
+
+  .tool-portal-card--disabled:hover .tool-portal-card__arrow {
+    transform: none;
+  }
 }
 
 @container (max-width: 430px) {
@@ -253,6 +371,25 @@ function handleClick(event: MouseEvent) {
   .tool-portal-card__copy p {
     margin-top: 8px;
     font-size: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-portal-card,
+  .tool-portal-card::after,
+  .tool-portal-card__visual,
+  .tool-portal-card__copy strong,
+  .tool-portal-card__copy p,
+  .tool-portal-card__icon,
+  .tool-portal-card__markers,
+  .tool-portal-card__markers i::after,
+  .tool-portal-card__arrow {
+    transition: none;
+  }
+
+  .tool-portal-card__icon {
+    scale: none !important;
+    translate: none !important;
   }
 }
 </style>

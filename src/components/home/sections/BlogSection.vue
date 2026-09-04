@@ -152,7 +152,7 @@ function revealVisibleCards(scrollContainer: HTMLElement) {
 
     // 卡片主体先大幅滑入并回弹，建立明确的列表出现动作。
     const cardTimeline = gsap.timeline({ delay: index * 0.12 })
-    // 卡片内部的像素图标在主体稳定后独立旋转展开。
+    // 卡片内部的像素图标在主体稳定后按正交尺度展开。
     const icon = card.querySelector<HTMLElement>('.pixel-link-card__icon')
     // 顶栏和底栏从左向右展开，强化像素窗口装配感。
     const chrome = card.querySelectorAll<HTMLElement>('header, footer')
@@ -162,7 +162,6 @@ function revealVisibleCards(scrollContainer: HTMLElement) {
         x: 0,
         y: 0,
         scale: 1,
-        rotation: 0,
         autoAlpha: 1,
         duration: 0.92,
         ease: 'back.out(1.75)',
@@ -177,7 +176,6 @@ function revealVisibleCards(scrollContainer: HTMLElement) {
     if (icon) {
       cardTimeline.to(icon, {
         scale: 1,
-        rotation: 0,
         autoAlpha: 1,
         duration: 0.68,
         ease: 'back.out(2.2)',
@@ -194,11 +192,10 @@ function resetCardEntrances(cards: NodeListOf<HTMLElement>) {
     delete card.dataset.blogRevealed
 
     // 卡片主体回到容器左下方，等待下一次进入可见区域。
-    gsap.set(card, { x: -180, y: 104, scale: 0.84, rotation: -4, autoAlpha: 0 })
-    // 像素图标回到旋转收缩状态。
+    gsap.set(card, { x: -180, y: 104, scale: 0.84, autoAlpha: 0 })
+    // 像素图标回到正交收缩状态。
     gsap.set(card.querySelector<HTMLElement>('.pixel-link-card__icon'), {
       scale: 0,
-      rotation: -90,
       autoAlpha: 0,
     })
     // 顶栏和底栏重新收拢到左侧，等待横向装配。
@@ -490,17 +487,16 @@ onMounted(() => {
 
     // 标题容器保持最终布局，只让内部字母承担入场位移。
     gsap.set(section.querySelector('.blog-heading'), { autoAlpha: 1 })
-    gsap.set(windowTarget, { x: -128, y: 72, scale: 0.9, rotation: -1.5, autoAlpha: 1 })
+    gsap.set(windowTarget, { x: -128, y: 72, scale: 0.9, autoAlpha: 1 })
     gsap.set(letterTargets, {
       y: -220,
       x: (index) => (index % 2 === 0 ? -42 : 42),
-      rotation: (index) => (index % 2 === 0 ? -210 : 210) + index * 24,
       scale: 0.42,
       autoAlpha: 0,
       transformOrigin: '50% 0%',
     })
     resetCardEntrances(cardTargets)
-    gsap.set(canvas, { autoAlpha: 1, scale: 1, rotation: 0 })
+    gsap.set(canvas, { autoAlpha: 1, scale: 1 })
 
     // 章节入场时间线负责背景、窗口和逐字标题，卡片由内部可见性单独触发。
     const introTimeline = gsap.timeline({ paused: true })
@@ -510,14 +506,12 @@ onMounted(() => {
         y: 0,
         x: 0,
         scale: 1,
-        rotation: 0,
         duration: 1.12,
         ease: 'back.out(1.8)',
       }, 0.12)
       .to(letterTargets, {
         x: 0,
         y: 0,
-        rotation: 0,
         scale: 1,
         autoAlpha: 1,
         duration: 1.08,
@@ -526,14 +520,12 @@ onMounted(() => {
       }, 0.04)
       .to(letterTargets, {
         y: (index) => (index % 2 === 0 ? -10 : 8),
-        rotation: (index) => (index % 2 === 0 ? -7 : 7),
         duration: 0.18,
         stagger: 0.05,
         ease: 'power2.out',
       }, 0.92)
       .to(letterTargets, {
         y: 0,
-        rotation: 0,
         duration: 0.24,
         stagger: 0.05,
         ease: 'back.out(2)',
@@ -676,6 +668,11 @@ onUnmounted(() => {
 .blog-heading__letter {
   min-width: 0;
   overflow: visible;
+  transform-origin: center bottom;
+  transition:
+    filter var(--motion-fast) ease,
+    scale var(--motion-medium) var(--motion-step),
+    translate var(--motion-medium) var(--motion-step);
 }
 
 .blog-heading__letter :deep(canvas) {
@@ -694,6 +691,9 @@ onUnmounted(() => {
   border: 1px solid #aebfe2;
   background: rgb(255 255 255 / 92%);
   box-shadow: 14px 14px 0 #dfe7f7, -8px -8px 0 #edf2fc;
+  transition:
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-medium) var(--motion-step);
 }
 
 .blog-window::before,
@@ -729,6 +729,9 @@ onUnmounted(() => {
   background: #eaf0fb;
   font-size: 11px;
   font-weight: 800;
+  background-image: repeating-linear-gradient(90deg, transparent 0 12px, rgb(93 120 219 / 3%) 12px 13px);
+  background-position: 0 0;
+  transition: background-position var(--motion-medium) var(--motion-step);
 }
 
 .blog-window__bar {
@@ -748,6 +751,7 @@ onUnmounted(() => {
   aspect-ratio: 1;
   background: #5d78db;
   box-shadow: inset 0 0 0 1px #ffffff;
+  transition: transform var(--motion-fast) var(--motion-step);
 }
 
 .blog-window__status {
@@ -829,6 +833,7 @@ onUnmounted(() => {
   background: #ffffff;
   border: 2px solid #5d78db;
   transform: translateY(-50%);
+  box-shadow: 3px 3px 0 rgb(93 120 219 / 12%);
 }
 
 .blog-row {
@@ -854,6 +859,7 @@ onUnmounted(() => {
   padding: 28px 34px;
   grid-template-columns: 86px minmax(0, 1fr);
   gap: 26px;
+  transition: transform var(--motion-fast) var(--motion-step);
 }
 
 :deep(.blog-row .pixel-link-card__icon) {
@@ -879,6 +885,45 @@ onUnmounted(() => {
 
 :deep(.blog-row--3) {
   background: #fffdfd;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .blog-window:hover {
+    border-color: #7f97d4;
+    box-shadow: 18px 18px 0 #dbe5f7, -10px -10px 0 #edf2fc;
+  }
+
+  .blog-window:hover .blog-window__bar-label i {
+    transform: translateY(-3px) scale(1.12);
+  }
+
+  .blog-window:hover .blog-window__bar,
+  .blog-window:hover .blog-window__status {
+    background-position: 13px 0;
+  }
+
+  .blog-heading:hover .blog-heading__letter:nth-child(1) {
+    scale: 1.04 !important;
+    translate: -8px -8px !important;
+  }
+
+  .blog-heading:hover .blog-heading__letter:nth-child(2) {
+    translate: 0 8px !important;
+  }
+
+  .blog-heading:hover .blog-heading__letter:nth-child(3) {
+    filter: drop-shadow(7px 7px 0 rgb(99 185 176 / 15%));
+    translate: 4px -8px !important;
+  }
+
+  .blog-heading:hover .blog-heading__letter:nth-child(4) {
+    scale: 1.05 !important;
+    translate: 8px 8px !important;
+  }
+
+  :deep(.blog-row:hover .pixel-link-card__body) {
+    transform: translateX(3px);
+  }
 }
 
 @media (max-width: 1200px) and (min-width: 821px) {
@@ -974,6 +1019,22 @@ onUnmounted(() => {
 
   :deep(.blog-row .pixel-link-card__body p) {
     font-size: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blog-window,
+  .blog-window__bar,
+  .blog-window__status,
+  .blog-window__bar-label i,
+  .blog-heading__letter,
+  :deep(.blog-row .pixel-link-card__body) {
+    transition: none;
+  }
+
+  .blog-heading__letter {
+    scale: none !important;
+    translate: none !important;
   }
 }
 </style>

@@ -33,11 +33,15 @@ import { siteContent } from '../../config/site'
   font-family: "Cascadia Mono", "Microsoft YaHei", monospace;
   font-size: 11px;
   font-weight: 800;
+  transition:
+    color var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-step);
 }
 
 .site-footer__rail {
   display: flex;
   gap: 3px;
+  transition: transform var(--motion-medium) var(--motion-step);
 }
 
 .site-footer__rail i {
@@ -53,6 +57,28 @@ import { siteContent } from '../../config/site'
 
 .site-footer__rail i:nth-child(3n) {
   background: #eaa4ca;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .site-footer:hover p {
+    color: #657fe2;
+    transform: translateY(-2px);
+  }
+
+  .site-footer:hover .site-footer__rail:first-child {
+    transform: translateX(-8px);
+  }
+
+  .site-footer:hover .site-footer__rail:last-child {
+    transform: translateX(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-footer p,
+  .site-footer__rail {
+    transition: none;
+  }
 }
 
 @media (max-width: 560px) {

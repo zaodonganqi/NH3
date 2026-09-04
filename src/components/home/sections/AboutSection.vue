@@ -25,6 +25,7 @@
               class="about-rhythm-bar__pixel"
               :data-mobile-hidden="pixelIndex > bar.mobileSegmentCount ? 'true' : 'false'"
               :data-pixel-index="pixelIndex - 1"
+              :style="resolveRhythmPixelStyle(pixelIndex - 1, bar)"
             ></span>
           </div>
         </div>
@@ -46,6 +47,7 @@
               class="about-rhythm-bar__pixel"
               :data-mobile-hidden="pixelIndex > bar.mobileSegmentCount ? 'true' : 'false'"
               :data-pixel-index="pixelIndex - 1"
+              :style="resolveRhythmPixelStyle(pixelIndex - 1, bar)"
             ></span>
           </div>
         </div>
@@ -194,26 +196,32 @@ interface RhythmBarRuntime {
  * 保存一个柱体像素飞向最终信息块时的目标变换。
  */
 interface FractureMotion {
-  // 目标水平位移。
-  x: number
-  // 目标垂直位移。
-  y: number
-  // 飞行结束时的尺寸比例。
-  scale: number
-  // 飞行过程中采用的直角旋转量。
-  rotation: number
+  // 四组正交路线的稳定编号，用于错开横穿与落位节奏。
+  route: number
+  // 方块横穿屏幕后在对侧形成编织像素流的水平位移。
+  crossX: number
+  // 复杂路线进入交换区前使用的中段水平位移。
+  waypointX: number
+  // 复杂路线进入交换区前使用的纵向错层位移。
+  waypointY: number
+  // 方块从对侧像素流进入资料块后的水平位移。
+  targetX: number
+  // 方块从对侧像素流进入资料块后的垂直位移。
+  targetY: number
+  // 方块抵达资料块附近时的尺寸比例。
+  targetScale: number
 }
 
 // 像素柱开始完全展开并准备裂解的滚动进度。
-const FRACTURE_START = 0.6
+const FRACTURE_START = 0.56
 // 律动逐渐收束为完整柱体的滚动进度。
-const RHYTHM_SETTLE_START = 0.52
+const RHYTHM_SETTLE_START = 0.5
 // 中心文字序列开始出现的滚动进度。
 const TEXT_SEQUENCE_START = 0.035
 // 中心文字序列全部离场的滚动进度。
-const TEXT_SEQUENCE_END = 0.56
+const TEXT_SEQUENCE_END = 0.53
 // 最终个人名片开始重组的滚动进度。
-const PROFILE_REVEAL_START = 0.69
+const PROFILE_REVEAL_START = 0.66
 // 侧边柱在窄屏下切换为横向宽度约束，避免遮住中心文字。
 const RHYTHM_MOBILE_BREAKPOINT = 700
 // 一轮律动只完成约一次呼吸，滚动时保持缓慢而连续的传播感。
@@ -265,6 +273,29 @@ function resolvePaletteStyle() {
 function resolveBarStyle(bar: AboutRhythmBar) {
   return {
     '--bar-color': bar.color,
+    '--rhythm-breath': '0.5',
+    '--rhythm-settle': '0',
+    '--rhythm-shift': '0px',
+    '--rhythm-visible-length': String(bar.minVisible),
+  } as CSSProperties
+}
+
+/**
+ * 为每个现有方块提供稳定索引、方向和错位相位，不创建额外像素节点。
+ */
+function resolveRhythmPixelStyle(pixelIndex: number, bar: AboutRhythmBar) {
+  // 左右两侧使用相反方向，使隐藏端都从外侧压缩并向中心展开。
+  const direction = bar.side === 'left' ? 1 : -1
+  // 五档错位相位让相邻方块在伸缩边缘形成离散波纹。
+  const tilt = pixelIndex % 5 - 2
+  // 四档深度控制内部亮片和轴向位移的细微差异。
+  const depth = pixelIndex % 4 + 1
+
+  return {
+    '--rhythm-depth': String(depth),
+    '--rhythm-direction': String(direction),
+    '--rhythm-index': String(pixelIndex),
+    '--rhythm-tilt': String(tilt),
   } as CSSProperties
 }
 
@@ -404,55 +435,102 @@ function renderBarRhythm(progress: number, bars: RhythmBarRuntime[]) {
       segmentCount,
       settleProgress,
     )
+    // 四分之一格步进避免方块边缘在滚动中产生连续亚像素伸缩。
+    const steppedVisibleLength = Math.round(visibleLength * 4) / 4
+    // 八档呼吸强度让端点与导轨保持离散像素节奏。
+    const steppedBreath = Math.round(wave * 8) / 8
+    // 八档收束进度用于控制导轨和最终完整柱体之间的清晰阶段。
+    const steppedSettle = Math.round(settleProgress * 8) / 8
 
-    for (let pixelIndex = 0; pixelIndex < runtime.pixels.length; pixelIndex += 1) {
-      // 只有柱体末端方块处于零到一之间，其余方块保持完整显示或隐藏。
-      const revealProgress = gsap.utils.clamp(0, 1, visibleLength - pixelIndex)
-      // 平滑步进减弱线性淡入的机械感，同时保持滚动进度直接控制动画。
-      const easedReveal = revealProgress * revealProgress * (3 - 2 * revealProgress)
+    // 当前侧别决定整根柱呼吸偏移的方向。
+    const shiftDirection = runtime.config.side === 'left' ? 1 : -1
+    // 接近裂解时整根柱回到中性位置，避免飞散起点产生额外偏差。
+    const rhythmShift = Math.round((wave - 0.5) * 18 * shiftDirection * (1 - settleProgress))
 
-      runtime.pixels[pixelIndex].style.setProperty(
-        '--rhythm-reveal',
-        easedReveal.toFixed(4),
-      )
-    }
+    runtime.element.style.setProperty('--rhythm-breath', steppedBreath.toFixed(3))
+    runtime.element.style.setProperty('--rhythm-settle', steppedSettle.toFixed(3))
+    runtime.element.style.setProperty('--rhythm-shift', `${rhythmShift}px`)
+    runtime.element.style.setProperty('--rhythm-visible-length', steppedVisibleLength.toFixed(2))
   }
 }
 
 /**
- * 计算每个柱体像素飞向最终信息碎片时的稳定目标。
+ * 计算两侧像素横穿全屏并直接组装到对侧资料块的正交运动目标。
  */
 function createFractureMotions(
+  stage: HTMLElement,
   pixelElements: HTMLElement[],
   fragmentElements: HTMLElement[],
 ) {
-  if (fragmentElements.length === 0) {
-    return pixelElements.map(() => ({ x: 0, y: 0, scale: 0, rotation: 0 }))
+  // 左侧资料块接收来自右侧的像素流，形成明显的交叉编织方向。
+  const leftTargets = fragmentElements.filter((element) => element.dataset.side === 'left')
+  // 右侧资料块接收来自左侧的像素流。
+  const rightTargets = fragmentElements.filter((element) => element.dataset.side === 'right')
+
+  if (leftTargets.length === 0 || rightTargets.length === 0) {
+    return pixelElements.map(() => ({
+      crossX: 0,
+      route: 0,
+      targetScale: 0,
+      targetX: 0,
+      targetY: 0,
+      waypointX: 0,
+      waypointY: 0,
+    }))
   }
 
+  // 舞台边界限定像素流横穿后的对侧停靠区域。
+  const stageBounds = stage.getBoundingClientRect()
+  // 舞台中心横坐标用于把左右来源映射到相反区域。
+  const stageCenterX = stageBounds.left + stageBounds.width / 2
+
   return pixelElements.map((pixel, index) => {
-    // 像素按顺序循环分配到最终信息块。
-    const target = fragmentElements[index % fragmentElements.length]
-    // 起点矩形用于计算像素中心。
+    // 当前方块来自左侧或右侧，决定横穿方向和最终资料块集合。
+    const fromLeft = Boolean(pixel.closest('.about-rhythm-bar--left'))
+    // 左侧方块进入右侧资料块，右侧方块进入左侧资料块。
+    const targetPool = fromLeft ? rightTargets : leftTargets
+    // 方块按稳定顺序循环分配到对侧资料块。
+    const target = targetPool[index % targetPool.length]
+    // 起点矩形用于计算当前方块中心。
     const pixelBounds = pixel.getBoundingClientRect()
-    // 终点矩形用于计算信息块中心。
+    // 目标矩形提供最终资料块中心。
     const targetBounds = target.getBoundingClientRect()
-    // 同一信息块接收的像素分散在规则小网格中，避免全部叠成一点。
-    const clusterIndex = Math.floor(index / fragmentElements.length)
-    // 水平散布使用稳定整数步进。
-    const jitterX = ((clusterIndex * 3 + index) % 7 - 3) * 13
-    // 垂直散布使用另一组稳定整数步进。
-    const jitterY = ((clusterIndex * 5 + index * 2) % 7 - 3) * 11
+    // 当前方块中心是所有相对位移的统一起点。
+    const pixelCenterX = pixelBounds.left + pixelBounds.width / 2
+    // 当前纵向中心用于第二拍垂直落位。
+    const pixelCenterY = pixelBounds.top + pixelBounds.height / 2
+    // 同一横向柱中的像素索引用于在对侧展开成多列，而不是叠成单线。
+    const segmentIndex = Number(pixel.dataset.pixelIndex ?? 0)
+    // 四组路线按稳定索引循环分配，每次进入页面都保持同一编织结构。
+    const route = index % 4
+    // 横穿后的像素墙位于对侧约三分之一屏宽，并保留六档整数列间距。
+    const crossTargetX = stageCenterX
+      + (fromLeft ? 1 : -1) * stageBounds.width * (0.27 + route * 0.018)
+      + (segmentIndex % 6 - 2.5) * 18
+    // 中段交换轨保留左右方向，但靠近屏幕中心形成多层交叉节点。
+    const waypointTargetX = stageCenterX
+      + (fromLeft ? -1 : 1) * stageBounds.width * (0.06 + route % 2 * 0.045)
+    // 纵向错层在舞台安全范围内按 48px 像素步进上下展开。
+    const waypointTargetY = gsap.utils.clamp(
+      stageBounds.top + 120,
+      stageBounds.bottom - 96,
+      pixelCenterY + (index % 7 - 3) * 48,
+    )
+    // 同一资料块接收的像素分散在稳定小网格中。
+    const clusterIndex = Math.floor(index / targetPool.length)
+    // 水平散布使用 12px 像素步进。
+    const jitterX = ((clusterIndex * 3 + index) % 7 - 3) * 12
+    // 垂直散布使用 8px 像素步进。
+    const jitterY = ((clusterIndex * 5 + index * 2) % 7 - 3) * 8
 
     return {
-      x: targetBounds.left + targetBounds.width / 2
-        - (pixelBounds.left + pixelBounds.width / 2)
-        + jitterX,
-      y: targetBounds.top + targetBounds.height / 2
-        - (pixelBounds.top + pixelBounds.height / 2)
-        + jitterY,
-      scale: 0.55 + index % 4 * 0.14,
-      rotation: (index % 5 - 2) * 90,
+      crossX: Math.round(crossTargetX - pixelCenterX),
+      route,
+      targetX: Math.round(targetBounds.left + targetBounds.width / 2 - pixelCenterX + jitterX),
+      targetY: Math.round(targetBounds.top + targetBounds.height / 2 - pixelCenterY + jitterY),
+      targetScale: 0.42 + index % 4 * 0.1,
+      waypointX: Math.round(waypointTargetX - pixelCenterX),
+      waypointY: Math.round(waypointTargetY - pixelCenterY),
     } satisfies FractureMotion
   })
 }
@@ -477,7 +555,15 @@ function createAboutTimeline(stage: HTMLElement) {
   // 联系入口单独交错进入，避免底部信息一次性挤在一起。
   const contactElements = gsap.utils.toArray<HTMLElement>('.about-profile-contact', stage)
   // 每个柱体像素对应的稳定飞行目标只在尺寸变化时重算。
-  const fractureMotions = createFractureMotions(pixelElements, fragmentElements)
+  const fractureMotions = createFractureMotions(stage, pixelElements, fragmentElements)
+  // 方块节点到运动目标的映射允许四组子时间线使用各自局部索引。
+  const fractureMotionMap = new Map(
+    pixelElements.map((pixel, index) => [pixel, fractureMotions[index]]),
+  )
+  // 四组路线按稳定编号拆分，形成不同顺序的横向与纵向编织过程。
+  const routeGroups = Array.from({ length: 4 }, (_, route) => (
+    pixelElements.filter((pixel) => fractureMotionMap.get(pixel)?.route === route)
+  ))
   // 叙事时间线只负责中心文字和最终名片，不再持有律动像素的样式。
   const storyTimeline = gsap.timeline({ paused: true, defaults: { ease: 'none' } })
   // 裂解时间线独立持有像素位移和透明度，回到前段时可完整释放控制权。
@@ -505,12 +591,11 @@ function createAboutTimeline(stage: HTMLElement) {
 
     storyTimeline.fromTo(
       line,
-      { autoAlpha: 0, y: 48, scale: 0.9, rotation: index % 2 === 0 ? -3 : 3 },
+      { autoAlpha: 0, y: 48, scale: 0.9 },
       {
         autoAlpha: 1,
         y: 0,
         scale: 1,
-        rotation: 0,
         duration: fadeInDuration,
         ease: 'power4.out',
       },
@@ -522,7 +607,6 @@ function createAboutTimeline(stage: HTMLElement) {
         autoAlpha: 0,
         y: -44,
         scale: 1.05,
-        rotation: index % 2 === 0 ? 2 : -2,
         duration: fadeOutDuration,
         ease: 'power3.in',
       },
@@ -531,41 +615,211 @@ function createAboutTimeline(stage: HTMLElement) {
   })
 
   fractureTimeline.set(pixelElements, { autoAlpha: 1 }, FRACTURE_START)
-  fractureTimeline.to(
+  // 第一拍统一压缩与回弹，让两侧 174 个方块同时响应中央吸引信号。
+  fractureTimeline.fromTo(
     pixelElements,
     {
-      x: (index) => fractureMotions[index]?.x ?? 0,
-      y: (index) => fractureMotions[index]?.y ?? 0,
-      scale: (index) => fractureMotions[index]?.scale ?? 1,
-      rotation: (index) => fractureMotions[index]?.rotation ?? 0,
-      duration: 0.18,
-      stagger: { each: 0.00045, from: 'edges' },
-      ease: 'power4.inOut',
+      scale: 1,
+      transformOrigin: (_, element) => (
+        element.closest('.about-rhythm-bar--left') ? 'left center' : 'right center'
+      ),
+    },
+    {
+      scale: (index) => index % 2 === 0 ? 0.78 : 1.08,
+      duration: 0.018,
+      stagger: { each: 0.00015, from: 'edges' },
+      ease: 'steps(2)',
     },
     FRACTURE_START,
   )
+  // 路线一先横穿、再纵向落位，保持最清晰的主方向基准。
+  fractureTimeline.to(
+    routeGroups[0],
+    {
+      x: (_, element: HTMLElement) => fractureMotionMap.get(element)?.crossX ?? 0,
+      scale: 0.82,
+      duration: 0.08,
+      stagger: { each: 0.00045, from: 'edges' },
+      ease: 'steps(12)',
+    },
+    0.575,
+  )
+  fractureTimeline.to(
+    routeGroups[0],
+    {
+      y: (_, element: HTMLElement) => fractureMotionMap.get(element)?.targetY ?? 0,
+      duration: 0.055,
+      stagger: { each: 0.0004, from: 'center' },
+      ease: 'steps(9)',
+    },
+    0.68,
+  )
+  fractureTimeline.to(
+    routeGroups[0],
+    {
+      x: (_, element: HTMLElement) => fractureMotionMap.get(element)?.targetX ?? 0,
+      scale: (_, element: HTMLElement) => fractureMotionMap.get(element)?.targetScale ?? 0.48,
+      duration: 0.045,
+      stagger: { each: 0.00035, from: 'edges' },
+      ease: 'steps(8)',
+    },
+    0.75,
+  )
+
+  // 路线二先上下错层，再从不同高度横穿，恢复更复杂的纵横交织感。
+  fractureTimeline.to(
+    routeGroups[1],
+    {
+      y: (_, element: HTMLElement) => fractureMotionMap.get(element)?.waypointY ?? 0,
+      duration: 0.055,
+      stagger: { each: 0.0004, from: 'center' },
+      ease: 'steps(8)',
+    },
+    0.575,
+  )
+  fractureTimeline.to(
+    routeGroups[1],
+    {
+      x: (_, element: HTMLElement) => fractureMotionMap.get(element)?.crossX ?? 0,
+      scale: 0.88,
+      duration: 0.085,
+      stagger: { each: 0.00045, from: 'edges' },
+      ease: 'steps(12)',
+    },
+    0.635,
+  )
+  fractureTimeline.to(
+    routeGroups[1],
+    {
+      y: (_, element: HTMLElement) => fractureMotionMap.get(element)?.targetY ?? 0,
+      duration: 0.05,
+      stagger: { each: 0.00035, from: 'center' },
+      ease: 'steps(8)',
+    },
+    0.725,
+  )
+  fractureTimeline.to(
+    routeGroups[1],
+    {
+      x: (_, element: HTMLElement) => fractureMotionMap.get(element)?.targetX ?? 0,
+      scale: (_, element: HTMLElement) => fractureMotionMap.get(element)?.targetScale ?? 0.48,
+      duration: 0.04,
+      stagger: { each: 0.0003, from: 'edges' },
+      ease: 'steps(8)',
+    },
+    0.78,
+  )
+
+  // 路线三先进入中段交换轨，再垂直错层并继续横穿，形成多次折返。
+  fractureTimeline.to(
+    routeGroups[2],
+    {
+      x: (_, element: HTMLElement) => fractureMotionMap.get(element)?.waypointX ?? 0,
+      duration: 0.05,
+      stagger: { each: 0.00035, from: 'edges' },
+      ease: 'steps(8)',
+    },
+    0.575,
+  )
+  fractureTimeline.to(
+    routeGroups[2],
+    {
+      y: (_, element: HTMLElement) => fractureMotionMap.get(element)?.waypointY ?? 0,
+      duration: 0.05,
+      stagger: { each: 0.00035, from: 'center' },
+      ease: 'steps(8)',
+    },
+    0.63,
+  )
+  fractureTimeline.to(
+    routeGroups[2],
+    {
+      x: (_, element: HTMLElement) => fractureMotionMap.get(element)?.crossX ?? 0,
+      scale: 0.78,
+      duration: 0.075,
+      stagger: { each: 0.0004, from: 'edges' },
+      ease: 'steps(11)',
+    },
+    0.685,
+  )
+  fractureTimeline.to(
+    routeGroups[2],
+    {
+      y: (_, element: HTMLElement) => fractureMotionMap.get(element)?.targetY ?? 0,
+      duration: 0.045,
+      stagger: { each: 0.0003, from: 'center' },
+      ease: 'steps(8)',
+    },
+    0.765,
+  )
+  fractureTimeline.to(
+    routeGroups[2],
+    {
+      x: (_, element: HTMLElement) => fractureMotionMap.get(element)?.targetX ?? 0,
+      scale: (_, element: HTMLElement) => fractureMotionMap.get(element)?.targetScale ?? 0.48,
+      duration: 0.035,
+      stagger: { each: 0.00025, from: 'edges' },
+      ease: 'steps(7)',
+    },
+    0.815,
+  )
+
+  // 路线四先对齐目标行，再反向横穿并折回资料块，制造交叉流中的逆向层。
+  fractureTimeline.to(
+    routeGroups[3],
+    {
+      y: (_, element: HTMLElement) => fractureMotionMap.get(element)?.targetY ?? 0,
+      duration: 0.065,
+      stagger: { each: 0.00045, from: 'center' },
+      ease: 'steps(10)',
+    },
+    0.575,
+  )
+  fractureTimeline.to(
+    routeGroups[3],
+    {
+      x: (_, element: HTMLElement) => fractureMotionMap.get(element)?.crossX ?? 0,
+      scale: 0.84,
+      duration: 0.09,
+      stagger: { each: 0.00045, from: 'edges' },
+      ease: 'steps(13)',
+    },
+    0.645,
+  )
+  fractureTimeline.to(
+    routeGroups[3],
+    {
+      x: (_, element: HTMLElement) => fractureMotionMap.get(element)?.targetX ?? 0,
+      scale: (_, element: HTMLElement) => fractureMotionMap.get(element)?.targetScale ?? 0.48,
+      duration: 0.05,
+      stagger: { each: 0.00035, from: 'center' },
+      ease: 'steps(9)',
+    },
+    0.745,
+  )
+
+  // 四组路线全部完成后再统一熄灭残余像素，避免任何一组提前消失。
   fractureTimeline.to(
     pixelElements,
     {
       autoAlpha: 0,
-      scale: 0.12,
-      duration: 0.11,
-      stagger: { each: 0.0002, from: 'random' },
-      ease: 'power3.in',
+      scale: 0.08,
+      duration: 0.035,
+      stagger: { each: 0.00008, from: 'center' },
+      ease: 'steps(5)',
     },
-    0.775,
+    0.86,
   )
 
   storyTimeline.set(profileRef.value, { autoAlpha: 1 }, PROFILE_REVEAL_START)
   storyTimeline.fromTo(
     portraitElements,
-    { autoAlpha: 0, scale: 0.12, rotation: -180, y: 180 },
+    { autoAlpha: 0, scale: 0.12, y: 180 },
     {
       autoAlpha: 1,
       scale: 1,
-      rotation: 0,
       y: 0,
-      duration: 0.2,
+      duration: 0.13,
       stagger: 0.012,
       ease: 'power4.out',
     },
@@ -578,19 +832,17 @@ function createAboutTimeline(stage: HTMLElement) {
       x: (_, element) => element.dataset.side === 'left' ? -220 : 220,
       y: (index) => index % 2 === 0 ? -110 : 110,
       scale: 0.42,
-      rotation: (_, element) => element.dataset.side === 'left' ? -14 : 14,
     },
     {
       autoAlpha: 1,
       x: 0,
       y: 0,
       scale: 1,
-      rotation: 0,
-      duration: 0.19,
+      duration: 0.13,
       stagger: { each: 0.018, from: 'center' },
       ease: 'power4.out',
     },
-    0.72,
+    0.675,
   )
 
   if (identity) {
@@ -601,25 +853,24 @@ function createAboutTimeline(stage: HTMLElement) {
         autoAlpha: 1,
         y: 0,
         scale: 1,
-        duration: 0.16,
+        duration: 0.1,
         ease: 'power4.out',
       },
-      0.82,
+      0.74,
     )
   }
 
   storyTimeline.fromTo(
     contactElements,
-    { autoAlpha: 0, y: 56, rotation: 8 },
+    { autoAlpha: 0, y: 56 },
     {
       autoAlpha: 1,
       y: 0,
-      rotation: 0,
-      duration: 0.1,
+      duration: 0.06,
       stagger: 0.018,
       ease: 'steps(6)',
     },
-    0.89,
+    0.79,
   )
   storyTimeline.to({}, { duration: 0.001 }, 1)
   fractureTimeline.to({}, { duration: 0.001 }, 1)
@@ -668,6 +919,51 @@ function createAboutScene() {
   const renderProgress = (progress: number) => {
     // 所有时间线只接收零到一之间的稳定滚动进度。
     const normalizedProgress = gsap.utils.clamp(0, 1, progress)
+    // 像素流横穿期间提高全屏轨道强度，落入资料块前快速归零。
+    const convergenceIntensity = gsap.utils.clamp(
+      0,
+      1,
+      (normalizedProgress - FRACTURE_START) / 0.1,
+    ) * (1 - gsap.utils.clamp(0, 1, (normalizedProgress - 0.82) / 0.08))
+    // 第一组主路线穿过屏幕中线时产生持续时间较长的冲击波。
+    const crossingPulseOne = 1 - gsap.utils.clamp(
+      0,
+      1,
+      Math.abs(normalizedProgress - 0.64) / 0.055,
+    )
+    // 第二、三组错层路线经过中线时补充第二次冲击。
+    const crossingPulseTwo = 1 - gsap.utils.clamp(
+      0,
+      1,
+      Math.abs(normalizedProgress - 0.705) / 0.05,
+    )
+    // 逆向路线最后穿过中线时形成收尾冲击。
+    const crossingPulseThree = 1 - gsap.utils.clamp(
+      0,
+      1,
+      Math.abs(normalizedProgress - 0.755) / 0.045,
+    )
+    // 三组冲击取当前最大值，避免叠加后亮度失控。
+    const convergenceLock = Math.max(
+      crossingPulseOne,
+      crossingPulseTwo * 0.86,
+      crossingPulseThree * 0.72,
+    )
+    // 最终资料结构接近完成后再淡出导轨，保证交叉像素流路径始终可读。
+    const guideOpacity = 1 - gsap.utils.clamp(
+      0,
+      1,
+      (normalizedProgress - 0.84) / 0.08,
+    )
+
+    stage.classList.toggle(
+      'about-stage--fracturing',
+      normalizedProgress >= FRACTURE_START && normalizedProgress < 0.9,
+    )
+    stage.style.setProperty('--about-convergence-intensity', convergenceIntensity.toFixed(4))
+    stage.style.setProperty('--about-convergence-lock', convergenceLock.toFixed(4))
+    stage.style.setProperty('--about-guide-opacity', guideOpacity.toFixed(4))
+    stage.style.setProperty('--about-scene-progress', normalizedProgress.toFixed(4))
 
     storyTimeline.progress(normalizedProgress, false)
 
@@ -700,12 +996,22 @@ function createAboutScene() {
 }
 
 /**
- * 清除直接写入的像素律动进度，避免响应式重建继承旧状态。
+ * 清除柱级律动变量，避免响应式重建继承旧尺寸下的伸缩状态。
  */
 function resetBarPixelStyles() {
+  stageRef.value?.classList.remove('about-stage--fracturing')
+  stageRef.value?.style.removeProperty('--about-convergence-intensity')
+  stageRef.value?.style.removeProperty('--about-convergence-lock')
+  stageRef.value?.style.removeProperty('--about-guide-opacity')
+  stageRef.value?.style.removeProperty('--about-scene-progress')
   sectionRef.value
-    ?.querySelectorAll<HTMLElement>('.about-rhythm-bar__pixel')
-    .forEach((pixel) => pixel.style.removeProperty('--rhythm-reveal'))
+    ?.querySelectorAll<HTMLElement>('.about-rhythm-bar')
+    .forEach((bar) => {
+      bar.style.removeProperty('--rhythm-breath')
+      bar.style.removeProperty('--rhythm-settle')
+      bar.style.removeProperty('--rhythm-shift')
+      bar.style.removeProperty('--rhythm-visible-length')
+    })
 }
 
 /**
@@ -767,6 +1073,10 @@ onUnmounted(() => {
   --about-rhythm-offset: 0px;
   --about-rhythm-stroke: transparent;
   --about-rhythm-inner-stroke: #fff4df;
+  --about-convergence-intensity: 0;
+  --about-convergence-lock: 0;
+  --about-guide-opacity: 1;
+  --about-scene-progress: 0;
 
   position: sticky;
   top: 0;
@@ -777,6 +1087,55 @@ onUnmounted(() => {
   overflow: hidden;
   isolation: isolate;
   background: #ffffff;
+}
+
+.about-stage::before,
+.about-stage::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  content: '';
+  pointer-events: none;
+  translate: -50% -50%;
+}
+
+.about-stage::before {
+  width: 100%;
+  height: min(76vh, 820px);
+  background: repeating-linear-gradient(
+    180deg,
+    transparent 0 42px,
+    color-mix(in srgb, var(--about-blue) 26%, #ffffff) 42px 46px,
+    transparent 46px 84px,
+    color-mix(in srgb, var(--about-teal) 24%, #ffffff) 84px 88px,
+    transparent 88px 126px,
+    color-mix(in srgb, var(--about-purple) 22%, #ffffff) 126px 130px,
+    transparent 130px 168px
+  );
+  opacity: calc(var(--about-convergence-intensity) * 0.48);
+  scale: 1 calc(0.72 + var(--about-convergence-intensity) * 0.28);
+}
+
+.about-stage::after {
+  width: 100%;
+  height: 10px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--about-blue) 0 8px,
+    transparent 8px 16px,
+    var(--about-teal) 16px 24px,
+    transparent 24px 32px,
+    var(--about-pink) 32px 40px,
+    transparent 40px 48px
+  );
+  box-shadow:
+    0 -252px 0 color-mix(in srgb, var(--about-purple) 18%, transparent),
+    0 -126px 0 color-mix(in srgb, var(--about-teal) 18%, transparent),
+    0 126px 0 color-mix(in srgb, var(--about-pink) 18%, transparent),
+    0 252px 0 color-mix(in srgb, var(--about-blue) 18%, transparent);
+  opacity: calc(var(--about-convergence-intensity) * 0.22 + var(--about-convergence-lock) * 0.72);
+  scale: calc(0.72 + var(--about-convergence-lock) * 0.28) 1;
 }
 
 .about-scroll-track {
@@ -793,13 +1152,13 @@ onUnmounted(() => {
 }
 
 .about-scroll-step--fracture {
-  height: 96vh;
-  min-height: 680px;
+  height: 76vh;
+  min-height: 560px;
 }
 
 .about-scroll-step--profile {
-  height: 126vh;
-  min-height: 820px;
+  height: 100vh;
+  min-height: 720px;
 }
 
 .about-rhythm-field,
@@ -814,6 +1173,40 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
+.about-stage--fracturing .about-rhythm-field {
+  z-index: 4;
+}
+
+.about-stage--fracturing .about-rhythm-bar {
+  contain: layout style;
+  overflow: visible;
+}
+
+.about-stage--fracturing .about-rhythm-bar__pixel {
+  will-change: transform, opacity;
+}
+
+.about-rhythm-field::before,
+.about-rhythm-field::after {
+  position: absolute;
+  top: var(--about-nav-clearance);
+  bottom: 24px;
+  width: 2px;
+  content: '';
+  background: repeating-linear-gradient(180deg, #d8e1f4 0 6px, transparent 6px 12px);
+  opacity: calc(var(--about-guide-opacity) * 0.38);
+}
+
+.about-rhythm-field::before {
+  left: 50%;
+  translate: -18vw 0;
+}
+
+.about-rhythm-field::after {
+  right: 50%;
+  translate: 18vw 0;
+}
+
 .about-rhythm-side {
   position: absolute;
   display: grid;
@@ -822,26 +1215,84 @@ onUnmounted(() => {
   gap: 0;
 }
 
+.about-rhythm-side::after {
+  position: absolute;
+  top: -8px;
+  bottom: -8px;
+  width: 7px;
+  content: '';
+  background: repeating-linear-gradient(180deg, #ffffff 0 5px, #d9e2f5 5px 9px, transparent 9px 13px);
+  opacity: calc(var(--about-guide-opacity) * 0.54);
+}
+
 .about-rhythm-side--left {
   left: 0;
+}
+
+.about-rhythm-side--left::after {
+  right: -3px;
 }
 
 .about-rhythm-side--right {
   right: 0;
 }
 
+.about-rhythm-side--right::after {
+  left: -3px;
+}
+
 .about-rhythm-bar {
+  --rhythm-breath: 0.5;
+  --rhythm-settle: 0;
+  --rhythm-shift: 0px;
+  --rhythm-visible-length: 0;
+
   display: flex;
+  position: relative;
+  z-index: 0;
   width: max-content;
   min-width: 0;
   height: var(--about-rhythm-cell-size);
   align-items: stretch;
-  contain: layout style;
+  contain: layout paint style;
+  isolation: isolate;
+  translate: var(--rhythm-shift) 0;
   will-change: transform;
+}
+
+.about-rhythm-bar::before {
+  position: absolute;
+  z-index: -2;
+  top: calc(50% - 2px);
+  right: -18px;
+  left: -18px;
+  height: 4px;
+  content: '';
+  background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--bar-color) 52%, #ffffff) 0 7px, transparent 7px 11px);
+  opacity: calc(var(--about-guide-opacity) * (0.18 + var(--rhythm-breath) * 0.42));
+  scale: calc(0.9 + var(--rhythm-breath) * 0.1) 1;
+}
+
+.about-rhythm-bar::after {
+  position: absolute;
+  z-index: 3;
+  top: calc(50% - 7px);
+  width: 14px;
+  height: 14px;
+  content: '';
+  background: #ffffff;
+  border: 3px solid var(--bar-color);
+  box-shadow: 4px 4px 0 color-mix(in srgb, var(--bar-color) 22%, transparent);
+  opacity: calc(var(--about-guide-opacity) * (0.45 + var(--rhythm-breath) * 0.55));
+  scale: calc(0.76 + var(--rhythm-breath) * 0.24);
 }
 
 .about-rhythm-bar--left {
   justify-self: start;
+}
+
+.about-rhythm-bar--left::after {
+  right: -12px;
 }
 
 .about-rhythm-bar--right {
@@ -849,28 +1300,78 @@ onUnmounted(() => {
   justify-self: end;
 }
 
+.about-rhythm-bar--right::after {
+  left: -12px;
+}
+
 .about-rhythm-bar__pixel {
+  --rhythm-collapse: calc(1 - var(--rhythm-reveal));
+  --rhythm-reveal: clamp(0, calc(var(--rhythm-visible-length) - var(--rhythm-index)), 1);
+
   position: relative;
+  z-index: 1;
   display: block;
   width: var(--about-rhythm-cell-size);
   height: var(--about-rhythm-cell-size);
   box-sizing: border-box;
   flex: 0 0 auto;
-  background: var(--bar-color);
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 34%) 0 11%, transparent 11% 100%),
+    var(--bar-color);
   background-clip: padding-box;
   border: 4px solid var(--about-rhythm-stroke);
   opacity: var(--rhythm-reveal, 0);
-  transform: scale(calc(0.72 + var(--rhythm-reveal, 0) * 0.28));
-  will-change: transform, opacity;
+  transform:
+    translate3d(
+      calc(var(--rhythm-direction) * var(--rhythm-collapse) * (5px + var(--rhythm-depth) * 2px)),
+      calc(var(--rhythm-collapse) * var(--rhythm-tilt) * 3px),
+      0
+    )
+    scale(calc(0.62 + var(--rhythm-reveal) * 0.38));
+  transform-origin: calc(50% - var(--rhythm-direction) * 50%) center;
+}
+
+.about-rhythm-bar__pixel::before {
+  position: absolute;
+  inset: 9px;
+  content: '';
+  background:
+    linear-gradient(90deg, #ffffff 0 28%, transparent 28% 72%, #ffffff 72%),
+    linear-gradient(180deg, transparent 0 34%, color-mix(in srgb, var(--bar-color) 52%, #ffffff) 34% 66%, transparent 66%);
+  clip-path: polygon(0 0, 72% 0, 72% 24%, 100% 24%, 100% 100%, 28% 100%, 28% 76%, 0 76%);
+  opacity: calc(var(--rhythm-reveal) * (0.38 + var(--rhythm-depth) * 0.07));
+  scale: calc(0.62 + var(--rhythm-reveal) * 0.38);
 }
 
 .about-rhythm-bar__pixel::after {
   position: absolute;
   inset: 4px;
   box-sizing: border-box;
-  border: 2px solid var(--about-rhythm-inner-stroke);
+  border: 2px solid color-mix(in srgb, var(--about-rhythm-inner-stroke) 82%, var(--bar-color));
+  box-shadow:
+    inset 3px 3px 0 rgb(255 255 255 / 24%),
+    inset -3px -3px 0 color-mix(in srgb, var(--bar-color) 18%, transparent);
   content: '';
+  opacity: calc(0.42 + var(--rhythm-reveal) * 0.58);
   pointer-events: none;
+  translate:
+    calc(var(--rhythm-direction) * var(--rhythm-collapse) * 4px)
+    calc(var(--rhythm-tilt) * var(--rhythm-collapse) * 2px);
+}
+
+.about-rhythm-bar__pixel:nth-child(4n + 2) {
+  background:
+    linear-gradient(225deg, rgb(255 255 255 / 28%) 0 12%, transparent 12% 100%),
+    color-mix(in srgb, var(--bar-color) 94%, #ffffff);
+}
+
+.about-rhythm-bar__pixel:nth-child(4n + 3)::before {
+  clip-path: polygon(0 0, 100% 0, 100% 28%, 76% 28%, 76% 100%, 24% 100%, 24% 72%, 0 72%);
+}
+
+.about-rhythm-bar__pixel:nth-child(4n)::after {
+  inset: 6px;
+  border-width: 3px;
 }
 
 .about-intro {
@@ -904,6 +1405,49 @@ onUnmounted(() => {
   padding: calc(var(--about-nav-clearance) + 22px) 92px 26px;
   visibility: hidden;
   opacity: 0;
+}
+
+.about-profile::before,
+.about-profile::after {
+  position: absolute;
+  z-index: -1;
+  top: 50%;
+  left: 50%;
+  content: '';
+  pointer-events: none;
+}
+
+.about-profile::before {
+  width: min(48vw, 620px);
+  aspect-ratio: 1;
+  border: 2px dashed #dce4f6;
+  box-shadow:
+    0 0 0 18px rgb(101 127 226 / 2%),
+    0 0 0 36px rgb(101 201 196 / 2%);
+  opacity: 0.56;
+  translate: -50% -50%;
+  animation: about-profile-frame 16s steps(16, end) infinite;
+}
+
+.about-profile::after {
+  width: min(72vw, 980px);
+  height: 8px;
+  background: repeating-linear-gradient(90deg, #7189e2 0 8px, transparent 8px 16px, #73c8c2 16px 24px, transparent 24px 32px, #dda5c5 32px 40px, transparent 40px 48px);
+  opacity: 0.18;
+  translate: -50% -50%;
+  animation: about-profile-signal 9s steps(12, end) infinite;
+}
+
+@keyframes about-profile-frame {
+  0%,
+  100% { scale: 0.98; translate: -50% -50%; }
+  50% { scale: 1.02; translate: calc(-50% + 8px) calc(-50% - 8px); }
+}
+
+@keyframes about-profile-signal {
+  0%,
+  100% { background-position: 0 0; scale: 0.86 1; }
+  50% { background-position: 48px 0; scale: 1 1; }
 }
 
 .about-profile__shell {
@@ -951,6 +1495,10 @@ onUnmounted(() => {
   background: var(--fragment-background);
   box-shadow: 10px 10px 0 var(--fragment-accent);
   transform: translateX(var(--fragment-shift));
+  transition:
+    box-shadow var(--motion-medium) var(--motion-step),
+    filter var(--motion-fast) ease,
+    translate var(--motion-medium) var(--motion-step);
 }
 
 .about-profile-fragment__label {
@@ -1000,6 +1548,9 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition:
+    filter var(--motion-fast) ease,
+    scale var(--motion-medium) var(--motion-step);
 }
 
 .about-profile__portrait > span {
@@ -1039,6 +1590,9 @@ onUnmounted(() => {
   min-height: 86px;
   font-size: 72px;
   line-height: 1.1;
+  transition:
+    filter var(--motion-fast) ease,
+    translate var(--motion-medium) var(--motion-step);
 }
 
 .about-profile__role {
@@ -1066,6 +1620,7 @@ onUnmounted(() => {
 }
 
 .about-profile-contact {
+  position: relative;
   display: grid;
   min-width: 168px;
   min-height: 58px;
@@ -1078,6 +1633,47 @@ onUnmounted(() => {
   visibility: hidden;
   opacity: 0;
   will-change: transform, opacity;
+  transition:
+    background-color var(--motion-fast) ease,
+    box-shadow var(--motion-medium) var(--motion-step),
+    color var(--motion-fast) ease,
+    translate var(--motion-medium) var(--motion-step);
+}
+
+.about-profile-contact::after {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  width: 24px;
+  height: 4px;
+  content: "";
+  background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 7px);
+  opacity: 0.45;
+  transform: scaleX(0.6);
+  transform-origin: right center;
+  transition: transform var(--motion-medium) var(--motion-step);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .about-profile-fragment:hover .about-profile-fragment__body {
+    box-shadow: 14px 14px 0 var(--fragment-accent);
+    filter: saturate(1.06);
+    translate: -4px -5px;
+  }
+
+  .about-profile__fragments--right .about-profile-fragment:hover .about-profile-fragment__body {
+    translate: 4px -5px;
+  }
+
+  .about-profile__portrait-zone:hover .about-profile__portrait img {
+    filter: saturate(1.08) contrast(1.02);
+    scale: 1.045;
+  }
+
+  .about-profile__identity:hover .about-profile__name {
+    filter: drop-shadow(7px 7px 0 rgb(95 120 237 / 10%));
+    translate: 0 -4px;
+  }
 }
 
 .about-profile-contact span {
@@ -1092,9 +1688,20 @@ onUnmounted(() => {
   line-height: 1.15;
 }
 
-.about-profile-contact:hover {
-  color: #ffffff;
-  background: var(--contact-accent);
+@media (hover: hover) and (pointer: fine) {
+  .about-profile-contact:hover,
+  .about-profile-contact:focus-visible {
+    color: #ffffff;
+    background: var(--contact-accent);
+    box-shadow: 10px 10px 0 color-mix(in srgb, var(--contact-accent) 24%, #ffffff);
+    outline: none;
+    translate: -4px -4px !important;
+  }
+
+  .about-profile-contact:hover::after,
+  .about-profile-contact:focus-visible::after {
+    transform: scaleX(1);
+  }
 }
 
 @media (max-width: 1500px) {
@@ -1236,13 +1843,13 @@ onUnmounted(() => {
   }
 
   .about-scroll-step--fracture {
-    height: 82vh;
-    min-height: 560px;
+    height: 68vh;
+    min-height: 500px;
   }
 
   .about-scroll-step--profile {
-    height: 118vh;
-    min-height: 760px;
+    height: 96vh;
+    min-height: 700px;
   }
 
   .about-intro {
@@ -1372,6 +1979,28 @@ onUnmounted(() => {
   .about-profile-contact strong {
     margin-top: 4px;
     font-size: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .about-profile::before,
+  .about-profile::after {
+    animation: none;
+  }
+
+  .about-profile-contact,
+  .about-profile-contact::after {
+    transition: none;
+  }
+
+  .about-profile-fragment__body,
+  .about-profile__portrait img,
+  .about-profile__name {
+    transition: none;
+  }
+
+  .about-profile-contact {
+    translate: none !important;
   }
 }
 </style>
